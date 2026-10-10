@@ -98,6 +98,7 @@ const maxControlPipeLineSize = 1024 * 1024
 // exercised through -interactive.
 func RunInteractive(conn *session.GameConn, controlPipe string) {
 	slog.Info("interactive mode: reading commands", "controlPipe", controlPipe)
+	responses := startInteractiveReader(conn)
 	slog.Info(`format: cmd.name {"key":"value"} (params optional)`)
 	slog.Info("example usage", "example", `echo 'building.production.collect {"uuid":123}' > `+controlPipe)
 
@@ -184,7 +185,7 @@ func RunInteractive(conn *session.GameConn, controlPipe string) {
 			if line == "" {
 				continue
 			}
-			handleInteractiveLine(conn, line)
+			handleInteractiveLine(conn, responses, line)
 		}
 		_ = f.Close()
 		if err := scanner.Err(); err != nil {
@@ -270,7 +271,7 @@ func openControlPipeWithRetry(controlPipe string) (*os.File, error) {
 	return nil, err
 }
 
-func handleInteractiveLine(conn *session.GameConn, line string) {
+func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveResult, line string) {
 	cmd, rest, found := strings.Cut(line, " ")
 	rest = strings.TrimSpace(rest)
 
@@ -375,7 +376,7 @@ func handleInteractiveLine(conn *session.GameConn, line string) {
 		os.Exit(1)
 	}
 
-	msg, err := session.WaitForCmd(conn, session.DefaultCmdTimeout, cmd, "push."+cmd)
+	msg, err := waitInteractiveResponse(responses, session.DefaultCmdTimeout, cmd, "push."+cmd)
 	if err != nil {
 		// Same net.Error/Timeout() distinction round 21 applied at 6+ other call sites
 		// (buildings.go, mail.go, visitors.go, alliance.go) -- and that's already honored two
