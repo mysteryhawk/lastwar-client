@@ -26,6 +26,7 @@ Supported query kinds:
 | `vs_daily` | `day`: 1..6 | type 0; same explicit game-week label for days 1–6 |
 | `vs_weekly` | none | type 1; no day |
 | `vs_season` | none | type 2; no day |
+| `desert_thp` | none | implicit logged-in alliance; Desert Storm `users[].heroPower`; no paging |
 | `season_power` | `rank_type`: 2 or 4 | page_size 100; individual seasonal `score` |
 | `season_devotes` | `event_id`, active-event `sub_type` | start 1,end -1; no guessed event ID; `score` |
 | `svs` | none | Candidate cross-war personal ranking; confirm event applicability live |
@@ -36,6 +37,11 @@ Read [DOAC-PROTOCOL-FINDINGS.md](DOAC-PROTOCOL-FINDINGS.md) for handlers and unc
 `grab_times` and `season_devotes.sub_type` must be present even when their confirmed
 active-event value is zero. Omission is rejected so an unknown round or subtype cannot
 silently become a real wire value.
+
+`desert_thp` is the candidate full-alliance THP source used by the Desert Storm
+participant selector. It sends no alliance or server parameter, so use it only from an
+authorised member session on the target server. Until a live response matches the observed
+roster UID set, treat its coverage as unverified and keep `complete_roster=false`.
 
 For six-day VS comparisons, give all six daily queries the same confirmed game-week `period`, with `day` 1–6. Repeated polls are snapshots, not additional scores. Missing days remain unknown. THP/roster may use explicit game-day labels.
 

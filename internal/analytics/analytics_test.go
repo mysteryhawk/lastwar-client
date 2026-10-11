@@ -144,6 +144,35 @@ func TestLiveObservedTHPAndEmptyVSShapes(t *testing.T) {
 	}
 }
 
+func TestDesertTHPUsesUnpagedUsersAndHeroPower(t *testing.T) {
+	q := DesertTHPQuery("storm:test")
+	if q.Command != "dragon.assign.player.info" || len(q.Params.Keys()) != 0 || q.Payload != "users" {
+		t.Fatalf("wrong Desert THP wire shape: %+v", q)
+	}
+	r := sfs.NewSFSObject()
+	r.PutUtfString("uid", "synthetic-uid")
+	r.PutUtfString("name", "Synthetic")
+	r.PutLong("heroPower", 123)
+	r.PutLong("power", 999)
+	r.PutLong("armyPower", 456)
+	s := Snapshot{AllianceID: "A", SourceServer: 1723, TargetServer: 1723}
+	if err := ParseSnapshot(&s, q, payload("users", r)); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status != "ok" || len(s.Records) != 1 || s.Records[0].UID != "synthetic-uid" ||
+		s.Records[0].Value == nil || *s.Records[0].Value != 123 {
+		t.Fatalf("Desert THP parse = %+v", s)
+	}
+	missing := sfs.NewSFSObject()
+	missing.PutUtfString("uid", "city-power-only")
+	missing.PutLong("power", 999)
+	s = Snapshot{AllianceID: "A", SourceServer: 1723, TargetServer: 1723}
+	_ = ParseSnapshot(&s, q, payload("users", missing))
+	if s.Status != "partial" || len(s.Records) != 0 {
+		t.Fatal("city power substituted for Desert THP")
+	}
+}
+
 func TestMissingEmptyErrorsAndRosterIdentity(t *testing.T) {
 	q, _ := RosterQuery("A", "p")
 	for _, tc := range []struct {
@@ -232,6 +261,7 @@ func TestAnalyticsConfigRejectsUnknownOperations(t *testing.T) {
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"collect","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"vs_daily","period":"p","day":7}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p","grab_times":0}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"desert_thp","period":"p"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_devotes","period":"p","event_id":"event","sub_type":0}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_devotes","period":"p","event_id":"event"}]}`, false},

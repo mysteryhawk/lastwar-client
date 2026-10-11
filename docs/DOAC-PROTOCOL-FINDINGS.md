@@ -68,6 +68,21 @@ a fresh guest's success-shaped empty result is consistent with missing event/acc
 not a protocol failure. The ranking request carries no week identifier; an observed duel
 `weekEndTime` is the preferred stable input for the caller-supplied period label.
 
+### Desert Storm participant THP source
+
+Version-matched Lua confirms the Desert Storm selector sends
+`dragon.assign.player.info {}` and consumes an unpaged `users` collection. The manager
+stores every returned row by stable `uid`. `ActDragonPlayerData` parses separate
+`heroPower`, `power` and `armyPower` fields, while `UIBFDesertSelectUserCtrl` explicitly
+selects the hero-power display and the shared row renderer reads `heroPower`. This is a
+strong candidate for all-member THP without the type-13 leaderboard cap. The request is
+implicitly scoped to the logged-in alliance: it carries no alliance/server/page parameter.
+Live DoAC coverage and event/access availability remain unverified.
+
+The analogous Canyon/DSB command is `dsb.act.player.list {}` with unpaged `users`, but its
+version-matched row parser exposes `power` and `armyPower`, not `heroPower`; do not use it
+as THP evidence.
+
 ## Membership
 
 Upstream historical live evidence: `docs/live-validation.mdx`, 2026-10-06, documents `al.rank {allianceId:Utf}` and `list[]`. No new live test occurred here.

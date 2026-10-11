@@ -296,3 +296,24 @@ event identifier is available. Exact next action is therefore still the authoris
 VS preflight and aggregate-only days 1-6/weekly/season capture described above. After that,
 test season power type 2 before type 4; only query devotes, meteorite or candidate SvS when
 their event ID/subtype, round or applicability is observed rather than defaulted or guessed.
+
+## Milestone — Desert Storm full-alliance THP path (2026-10-12)
+
+Version-matched Lua establishes a better THP source than the capped warzone ranking.
+The Desert Storm participant selector sends read-only `dragon.assign.player.info {}` and
+handles an unpaged `users` collection. Rows are stored by stable `uid` and parse separate
+`heroPower`, city `power` and `armyPower` fields. The Desert controller explicitly selects
+hero power for display; the shared row component reads `heroPower`. Canyon/DSB's analogous
+`dsb.act.player.list {}` parser lacks `heroPower`, so it is not used for THP.
+
+The collector now supports `kind: desert_thp`, exporting only UID/name and `heroPower` from
+`users`. Synthetic regression coverage proves city/army power cannot substitute. The
+request has no alliance, server or paging parameter and is therefore implicitly scoped to
+the logged-in alliance. It must be run from an authorised DoAC member session on server
+1723; guest/cross-server results cannot establish DoAC coverage. `complete_roster` remains
+false until returned UIDs match the separately observed roster.
+
+Automated verification so far: focused analytics/SFS tests and Linux-targeted vet passed.
+Exact next action: run the committed branch's full isolated Linux race suite, then use an
+authorised server-1723 DoAC member session to collect `al.rank` and `desert_thp` in the same
+session. Accept full THP coverage only if the UID sets match; keep missing rows unknown.

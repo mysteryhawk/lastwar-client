@@ -33,7 +33,7 @@ func (c *Collector) Collect(ctx context.Context, q Query) (Snapshot, error) {
 		now = c.Now
 	}
 	s.CollectedAt = now().UTC()
-	if q.Command != "al.battle.rank.info" && q.Command != "al.rank" && q.Command != "rank.get" && q.Command != "meteorite.rank.person.info" && q.Command != "cross.throne.person.score.rank" && q.Command != "lw.season.rank.info" && q.Command != "lw.season.alliance.devotes.rank.info" {
+	if q.Command != "al.battle.rank.info" && q.Command != "al.rank" && q.Command != "rank.get" && q.Command != "dragon.assign.player.info" && q.Command != "meteorite.rank.person.info" && q.Command != "cross.throne.person.score.rank" && q.Command != "lw.season.rank.info" && q.Command != "lw.season.alliance.devotes.rank.info" {
 		return s, errInvalidQuery
 	}
 	if c.Client == nil || c.TargetServer <= 0 || c.AllianceID == "" || q.Command == "" || q.Period == "" {

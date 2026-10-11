@@ -107,6 +107,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q, err = SeasonDevotesQuery(v.EventID, *v.SubType, start, end, v.Period)
 		case "thp":
 			q, err = RankQuery(THPRankingType, v.Global, c.TargetServer, "THP", "heroPower", v.Period)
+		case "desert_thp":
+			q = DesertTHPQuery(v.Period)
 		default:
 			return nil, errors.New("unsupported analytics query kind")
 		}

@@ -81,6 +81,13 @@ func RosterQuery(allianceID, period string) (Query, error) {
 	return Query{Command: "al.rank", Params: p, Metric: "membership", Period: period, Payload: "list", Roster: true}, nil
 }
 
+// DesertTHPQuery follows the Desert Storm participant selector. The request
+// is implicitly scoped to the logged-in alliance and returns an unpaged users
+// collection containing uid and heroPower, distinct from city power.
+func DesertTHPQuery(period string) Query {
+	return Query{Command: "dragon.assign.player.info", Params: sfs.NewSFSObject(), Metric: "THP", Period: period, Payload: "users", ValueField: "heroPower"}
+}
+
 // RankQuery follows GetRankListMessage. Numeric ranking type must come from
 // Lua definitions. THP parsing requires heroPower, never total city power.
 func RankQuery(rankType, global, server int32, metric, field, period string) (Query, error) {
