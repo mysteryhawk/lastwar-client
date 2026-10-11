@@ -11,8 +11,9 @@ Copy `analytics.example.json` to a private location. Set the confirmed alliance 
 ```bash
 go build -o /tmp/lastwar-client ./cmd/lastwar-client
 /tmp/lastwar-client -config /private/existing-session.json -analytics /private/analytics.json
-python3 tools/ingest_analytics.py --db /private/doac-history.sqlite3 /private/doac-snapshots.jsonl
 ```
+
+In the separate [lastwar-dashboard repository](https://github.com/mysteryhawk/lastwar-dashboard), import those snapshots with `python3 tools/ingest_analytics.py --db /private/doac-history.sqlite3 /private/doac-snapshots.jsonl`. The Go client does not depend on Python. See [dashboard PR #1](https://github.com/mysteryhawk/lastwar-dashboard/pull/1) and its [version-1 contract](https://github.com/mysteryhawk/lastwar-dashboard/blob/feature/history-dashboard/docs/SNAPSHOT-CONTRACT.md).
 
 This is the intended future VM workflow, not a deployment performed by this session. Run one collection per invocation; scheduling is deliberately separate from protocol correctness. Session expiry retains existing auth exit code 2; terminal pushes retain code 3; other failures exit 1. Each completed query exports its status before later queries proceed. Output/logs must stay private because member identity is analytics data.
 
@@ -22,7 +23,7 @@ Supported query kinds:
 |---|---|---|
 | `membership` | none | Explicit config alliance ID; `al.rank` |
 | `thp` | none | `rank.get`, type 13, `heroPower`; global 0 (config can specify 1) |
-| `vs_daily` | `day`: 1..6 | type 0; explicit game-day label |
+| `vs_daily` | `day`: 1..6 | type 0; same explicit game-week label for days 1–6 |
 | `vs_weekly` | none | type 1; no day |
 | `vs_season` | none | type 2; no day |
 | `season_power` | `rank_type`: 2 or 4 | page_size 100; individual seasonal `score` |
@@ -31,6 +32,8 @@ Supported query kinds:
 | `meteorite` | active-event `grab_times` | start_rank 1,count 100; zero-based round index |
 
 Read [DOAC-PROTOCOL-FINDINGS.md](DOAC-PROTOCOL-FINDINGS.md) for handlers and uncertainty. Paging/round/event dimensions are exported in `parameters`; do not combine variants merely because their metric names match. Ranking results may contain non-DoAC players; reconcile against the roster by UID. The snapshot's `alliance_id` is collection context, not proof each ranking row belongs to that alliance. Daily/weekly VS are explicitly aid-filtered.
+
+For six-day VS comparisons, give all six daily queries the same confirmed game-week `period`, with `day` 1–6. Repeated polls are snapshots, not additional scores. Missing days remain unknown. THP/roster may use explicit game-day labels.
 
 ## Snapshot contract
 
@@ -57,7 +60,7 @@ The importer uses Python's standard library, transactions and canonical snapshot
 
 Go currently exports `complete_roster=false`. Before enabling this, confirm a nonempty `al.rank` response contains every member, with no hidden pagination or access filtering. Empty guests, partial payloads, source-server mismatches and ranking absence must never infer departures. All observations/name histories are already retained by UID.
 
-Keep the new history DB separate until `/home/opc/doac-dashboard` and its real schema are inspected. Flask can open it read-only (`sqlite3.connect('file:/private/doac-history.sqlite3?mode=ro', uri=True)`) or attach it for reporting. Existing dashboard migration is not implemented or deployed.
+The uploaded dashboard prototype has now been inspected: it is a manual name-keyed CSV app without THP, UID or collection dimensions. Its installed VM state and any real legacy data remain uninspected. A standalone Python/Flask replacement is committed in private `mysteryhawk/lastwar-dashboard`, branch `feature/history-dashboard`, draft PR #1. It reads this history schema, supports six-day VS coverage and configurable THP/activity groups, and passed nine synthetic dashboard tests plus five ingestion tests. See the current agent state for the preserved source package and handover. Keep the history DB separate from the legacy prototype DB; do not auto-map names to UIDs. Flask can open it read-only (`sqlite3.connect('file:/private/doac-history.sqlite3?mode=ro', uri=True)`) or attach it for reporting. Existing dashboard migration is not implemented or deployed.
 
 Example history query (use bound parameters):
 
@@ -90,7 +93,6 @@ go test ./... -race
 go vet ./...
 go build ./...
 GOOS=linux GOARCH=arm64 go build -o /tmp/lastwar-client-arm64 ./cmd/lastwar-client
-python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
-Transport tests cover >1000 idle pushes, out-of-order concurrent requests, stale replies, typed IDs, caller-ID rejection, timeouts/cancellation, terminal pushes, disconnects, complete corrupt packet recovery and bootstrap deadline clearing. Analytics tests cover Lua wire tags, parser strictness, echo mismatches, THP field choice, UID precision, filtering, aliases, credential-free export and private CLI output. Python tests cover transactional rollback, idempotency, exact int64 scores, safe membership events and out-of-order import.
+Transport tests cover >1000 idle pushes, out-of-order concurrent requests, stale replies, typed IDs, caller-ID rejection, timeouts/cancellation, terminal pushes, disconnects, complete corrupt packet recovery and bootstrap deadline clearing. Analytics tests cover Lua wire tags, parser strictness, echo mismatches, THP field choice, UID precision, filtering, aliases, credential-free export and private CLI output. Python tests run independently in the dashboard repository (`python3 -m unittest discover -s tools -p 'test_*.py' -v` and, with Flask installed, `python3 -m unittest discover -s dashboard -p 'test_*.py' -v`). Python tests cover transactional rollback, idempotency, exact int64 scores, safe membership events and out-of-order import.

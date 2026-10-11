@@ -7,10 +7,11 @@ Updated: 2026-10-11. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
 - Branch `feature/interactive-continuous-reader`; draft PR #1. Main unchanged, no VM deployment, no game-server calls in this session.
 - Committed transport milestone: `20667c2` (dispatcher, typed scalars, updated tests/state). Initial state: `bbfcd76`.
 - Committed collector/storage milestone `874b4d7`: read-only VS daily/weekly/season, THP type 13, roster, season personal power/devotes, candidate SvS and meteorite queries; strict parsers; private JSONL CLI; transactional SQLite importer.
-- Automated verification: original full suite and transport/app/SFS race suite passed; latest collector/CLI race tests and five Python importer tests passed. Whole-repository `go test ./... -race`, `go vet ./...`, native build, Linux ARM64 build and gofmt checks passed. Python tests also added to CI.
+- Automated verification: original full suite and transport/app/SFS race suite passed; latest collector/CLI race tests and five Python importer tests passed. Whole-repository `go test ./... -race`, `go vet ./...`, native build, Linux ARM64 build and gofmt checks passed. Python ingestion/dashboard tests now have independent CI in the dashboard repo (the original client copy is being removed in this milestone).
 - Live verification: none here. Historical upstream roster evidence remains clearly labelled. Full-roster marking deliberately disabled until live completeness/access semantics are checked.
 - Blocked: this Work runtime cannot reach the supplied Oracle VM SSH endpoint (TCP connection fails locally with `OSError: [Errno 101] Network is unreachable`); target-server/alliance live session, actual dashboard schema and active event IDs/rounds. THP constant is no longer blocked: recovered from the public historical Lua bundle.
-- Immediate next action: obtain authorised access to the existing session/dashboard environment for live validation and schema inspection. Local development milestone is complete; no uncommitted implementation remains. PR #1 has been rewritten and remains draft.
+- Independent dashboard published: private `mysteryhawk/lastwar-dashboard`, branch `feature/history-dashboard`, draft PR #1, implementation `795117a`. Python importer/tests now live there; this milestone removes the client copy.
+- Immediate next action: inspect live VM/session from an SSH-capable environment, verify DoAC/server1723 payloads and coverage, then browser/container QA of the dashboard. Both PRs remain draft; no deployment or merge.
 
 ## Architecture and environment
 
@@ -33,7 +34,7 @@ Oracle Linux ARM VM paths from handover: `/home/opc/lastwar-client`, `/home/opc/
 - `go version` failed: Go not installed on PATH. Toolchain acquisition in progress; no tests claimed as passing yet.
 - Personal Context retrieval found no additional THP constant or SQLite schema. Do not repeat broad conversation retrieval.
 
-## Priorities and next actions
+## Initial recovery priorities (completed; retained for context)
 
 1. Implement dispatcher and fake-server tests: >1000 idle pushes, ID/command mismatch, stale replies, deadlines, cancellation, disconnection, terminal push and clean shutdown. Integrate FIFO and update existing tests.
 2. Implement explicit scalar types and Lua-derived typed VS builders, strict UID-keyed parsers, roster query and configurable rankings without guessed constants.
@@ -97,3 +98,52 @@ Access needed next: an authorised execution environment for the existing Oracle 
 The user supplied the Oracle VM address and SSH port 22. A non-authenticated Python `socket.create_connection((host, 22), timeout=10)` failed immediately with `OSError: [Errno 101] Network is unreachable`, before an SSH banner or authentication exchange. This confirms a routing restriction in this Work execution environment; it does not establish that the VM is down or its firewall is blocking SSH. No private key was requested, generated or used. No VM or game connection was established. Available connectors expose no suitable remote shell.
 
 Next action: resume live inspection in an authorised SSH-capable execution environment. A public IP or additional authentication material alone cannot fix the current runtime routing restriction; do not request private keys or game credentials in chat. An independently authorised remote execution facility would also suffice, but none has been established. Meanwhile, sanitised Flask source and schema-only SQL supplied through GitHub or files would allow offline integration development; exclude configuration secrets, SQLite data and account/session material. Do not repeat credential setup before checking network reachability in the new environment. Implementation and automated test conclusions above are unchanged.
+
+## Follow-up — uploaded prototype and independent dashboard (2026-10-11)
+
+The user supplied `doac-dashboard.zip` (SHA256
+`6b842efd555cb544dff0f795845db3be65258a9f82ab2ac0bdb5ceea4fbc1c2a`) and confirmed it is essentially a prototype. The archive contains app.py, README.md, Containerfile and compose.yaml, no DB or credentials. Its schema is `players(id,name UNIQUE,active)` and `scores(player_id,day,event,score)`; it supports manual CSV entry and rolling seven-day summaries, lacks game UID/THP/timestamps/event dimensions. This is source evidence, not an inspection of the installed VM or actual stored data. No need to request the schema-only command for this same prototype design.
+
+User requested a separate `lastwar-dashboard` GitHub repository so Python and Go can develop independently. Prepared a standalone project locally, keeping all dashboard additions out of the client branch. New repo publication is blocked because the connector has no create-repository operation. User must initialise private `mysteryhawk/lastwar-dashboard` with a README and ensure connector access; then publish on a development branch/draft PR without merging. The already-committed importer remains in this client temporarily until independent publication; do not delete its working implementation prematurely.
+
+Prepared deliverable: `lastwar-dashboard-prepared.zip`, preserved as a new downloadable file alongside the user's original upload. Package SHA256 `9cc4215dae7c18a8a3b8b275411aec4c610ad444464601bb0d1b8a481ae747f7`. It contains all dashboard source, importer/tests, independent Python CI, contract, README and its own `docs/DOAC-AGENT-STATE.md`. It contains no DB/data/credentials. If local scratch has expired, retrieve this exact prepared package, not the original manual prototype. Original uploaded file was preserved.
+
+Architecture: `dashboard/history.py` provides mode=ro/query_only SQLite projections, historical alliance/UID scope, latest collection summaries, per-UID timestamped trends and six-day VS aggregation. `dashboard/app.py` provides authenticated Flask pages/API/CSV, CSRF POST checks, private responses and an application factory. `dashboard/templates/` contains history/login/threshold-group views. `tools/ingest_analytics.py` copied to the independent project. `docs/SNAPSHOT-CONTRACT.md` records version-1 JSONL semantics. No Go runtime dependency in dashboard.
+
+Features tested locally: read-only/no-create DB access; unavailable DB; latest failed collection suppressing stale scores; source-server mismatch and wrong alliance/player-server exclusion; no future-roster use for past rankings; exact large UID/value; variant/week separation; repeated day polling; six-day coverage; renames/trend gaps; all four THP/activity threshold groups with explicit thresholds and an insufficient-data group; authenticated routes, CSRF/Unicode tokens/logout, HTML escaping and formula-safe CSV. Nine dashboard tests and five importer tests passed from the standalone root. Flask installed into scratch venv, original prototype dependency pins reused. New comparison template test caught a malformed brace; corrected and suite passed. No browser visual QA, container build, live server validation or deployment claimed.
+
+Updated client analytics example to request all six VS days under one explicit game-week label. Days remain distinct exported dimensions. Dashboard classification only uses six observed values, never zero-fills missing players/days. Weekly game ranking remains separate. THP and VS periods are selected explicitly; groups describe observations, not current membership. CSV prefixes UIDs to preserve spreadsheet precision; JSONL/API is the machine interface.
+
+Next sequence:
+1. Publish prepared dashboard package to the new repo and record actual commit/PR URLs in both states. Verify independent Python CI when available.
+2. Link the published dashboard contract/importer from client docs; retire client importer copy only after independent publication is safe.
+3. Resume read-only VM inspection from Codex CLI or another SSH-capable environment. Inspect any real legacy data before migration; never auto-map names to UID.
+4. Live-verify DoAC/server1723 access, THP coverage and roster completeness, then season/SvS/meteorite event semantics.
+5. Browser/mobile QA, container build and deployment remain outstanding. No deployment or merge authorised.
+
+This milestone changes client documentation and example config only; Go implementation and its previous race/build/vet verification are unchanged. Client working tree will be reconciled after committing this state.
+
+## Repository separation completed
+
+User created private `mysteryhawk/lastwar-dashboard`. Connector confirmed push access.
+Implementation is committed as `795117a4ac5883a57e0c758f77efc9a3e23c7b85` on
+`feature/history-dashboard`; initial state `ef712e48f7f57a7c241f9e2ee0f006e68cf33321`.
+Draft PR: https://github.com/mysteryhawk/lastwar-dashboard/pull/1. Main baseline
+`f58259ed71670dcf575b6149a1d11acfad9fa859` remains unchanged.
+
+The earlier repository-creation blocker is resolved. GitHub is now the authoritative
+dashboard source; the earlier prepared ZIP is a bootstrap checkpoint, not the latest
+state. Do not repeat repository creation or recreate dashboard code from the old upload.
+
+This client milestone removes `tools/ingest_analytics.py` and its Python tests/CI step,
+and links the independent dashboard importer/contract instead. Lua extraction remains
+in the client. JSONL schema version 1 and Go implementation are unchanged. The analytics
+example now includes six VS daily queries sharing an explicit week label. Final local
+checks: standalone nine dashboard tests and five importer tests passed; Python compilation
+and client git diff --check passed. Previous Go race/vet/native/ARM checks remain applicable
+because no Go code changed. Remote dashboard CI status is inspected separately, not assumed.
+
+Next: read the dashboard's own docs/DOAC-AGENT-STATE.md and docs/SNAPSHOT-CONTRACT.md;
+continue live verification using an SSH-capable environment. Current Work network limitation
+is unchanged. No Oracle changes, credentials, live game calls, main merges or real member
+data were involved.

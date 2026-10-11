@@ -60,8 +60,6 @@ jobs:
       # and UseInMemoryGSL), so the deadline is deterministic and cannot be starved regardless of
       # runner load. No retry needed; a failure here is a real failure.
       - run: go test ./... -race -cover
-      - name: Test analytics SQLite ingestion
-        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
 
   fuzz:
     name: fuzz (short)
