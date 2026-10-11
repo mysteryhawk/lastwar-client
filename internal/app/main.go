@@ -1181,9 +1181,11 @@ func runCrossServerTest(o crossServerTestOpts) {
 				// everything came from a session config, nothing was set yet, or a flag was
 				// explicitly passed but empty/zero) keeps the plain INFO-level "server selected"
 				// log below instead.
-				slog.Warn("GSL refresh response's server list is overriding explicitly-passed flag(s)", "overriddenFlags", overridden, "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", sfs.Redact(srv.GameUid.String()))
+				redactedGameUID := sfs.Redact(srv.GameUid.String())
+				slog.Warn("GSL refresh response's server list is overriding explicitly-passed flag(s)", "overriddenFlags", overridden, "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", redactedGameUID)
 			} else {
-				slog.Info("server selected", "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", sfs.Redact(srv.GameUid.String()))
+				redactedGameUID := sfs.Redact(srv.GameUid.String())
+				slog.Info("server selected", "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", redactedGameUID)
 			}
 			ip, port, zone, gameUid = srv.IP.String(), srv.Port.Int("port"), srv.Zone.String(), srv.GameUid.String()
 		}

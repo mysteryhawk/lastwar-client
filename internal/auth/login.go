@@ -298,7 +298,8 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		serverListLogCount = maxServerListLogEntries
 	}
 	for _, s := range lsr.ServerList[:serverListLogCount] {
-		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", sfs.Redact(s.GameUid.String()), "status", s.Status)
+		redactedGameUID := sfs.Redact(s.GameUid.String())
+		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", redactedGameUID, "status", s.Status)
 	}
 	accessTok := ""
 	if lsr.At != nil {
