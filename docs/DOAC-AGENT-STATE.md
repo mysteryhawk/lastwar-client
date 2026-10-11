@@ -230,3 +230,22 @@ Immediate next action: run the exact committed branch's full Go race suite in an
 temporary VM checkout after approval, without game access or replacing the installed
 client. Then investigate VS context/period fields using aggregate-only diagnostics during
 an active event or with an authorised participating session. Do not enable roster authority.
+
+## Checkpoint — pushed and Linux-verified (2026-10-11)
+
+Commit `fc39d76` (`analytics: record live roster evidence safely`) is pushed to
+`feature/interactive-continuous-reader`. The approved Linux check used a credential-free
+archive of that exact commit in a new VM `/tmp` directory. The VM's installed Go 1.26.7
+was too old for `go.mod`, so the official Go 1.27.2 Linux ARM64 archive was checksum-
+verified against go.dev and unpacked only inside the temporary directory. `go test ./...
+-race`, `go vet ./...` and `go build ./cmd/lastwar-client` then completed successfully.
+The trap removed the source, toolchain and transfer archives. This is automated Linux
+verification only: no feature binary was deployed and no game request was made.
+
+Current blocker and exact next action: daily/weekly/season VS responses remain live-
+observed but success-shaped empty for fresh non-participating guests. Obtain an authorised
+participating session during an active VS period (or wait for the event to be active), then
+run aggregate-only read-only VS queries for days 1-6, weekly and season. Record response
+keys, row counts and period identifiers without raw member data. Do not treat emptiness as
+zero, enable roster authority, deploy, or query season/SvS/meteorite until applicability is
+established.
