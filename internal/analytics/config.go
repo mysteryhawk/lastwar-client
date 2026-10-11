@@ -16,11 +16,11 @@ type Config struct {
 
 type QueryConfig struct {
 	EventID   string `json:"event_id,omitempty"`
-	GrabTimes int32  `json:"grab_times,omitempty"`
+	GrabTimes *int32 `json:"grab_times,omitempty"`
 	StartRank int32  `json:"start_rank,omitempty"`
 	Count     int32  `json:"count,omitempty"`
 	PageSize  int32  `json:"page_size,omitempty"`
-	SubType   int32  `json:"sub_type,omitempty"`
+	SubType   *int32 `json:"sub_type,omitempty"`
 	Start     int32  `json:"start,omitempty"`
 	End       int32  `json:"end,omitempty"`
 	Kind      string `json:"kind"`
@@ -74,6 +74,9 @@ func (c *Config) BuildQueries() ([]Query, error) {
 		case "membership":
 			q, err = RosterQuery(c.AllianceID, v.Period)
 		case "meteorite":
+			if v.GrabTimes == nil {
+				return nil, errInvalidQuery
+			}
 			start, count := v.StartRank, v.Count
 			if start == 0 {
 				start = 1
@@ -81,7 +84,7 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			if count == 0 {
 				count = 100
 			}
-			q, err = MeteoriteQuery(v.GrabTimes, start, count, v.Period)
+			q, err = MeteoriteQuery(*v.GrabTimes, start, count, v.Period)
 		case "svs":
 			q = SvSQuery(v.Period)
 		case "season_power":
@@ -91,6 +94,9 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			}
 			q, err = SeasonPowerQuery(v.RankType, size, v.Period)
 		case "season_devotes":
+			if v.SubType == nil {
+				return nil, errInvalidQuery
+			}
 			start, end := v.Start, v.End
 			if start == 0 {
 				start = 1
@@ -98,7 +104,7 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			if end == 0 {
 				end = -1
 			}
-			q, err = SeasonDevotesQuery(v.EventID, v.SubType, start, end, v.Period)
+			q, err = SeasonDevotesQuery(v.EventID, *v.SubType, start, end, v.Period)
 		case "thp":
 			q, err = RankQuery(THPRankingType, v.Global, c.TargetServer, "THP", "heroPower", v.Period)
 		default:

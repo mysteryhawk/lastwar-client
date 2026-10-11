@@ -250,3 +250,25 @@ run aggregate-only read-only VS queries for days 1-6, weekly and season. Record 
 keys, row counts and period identifiers without raw member data. Do not treat emptiness as
 zero, enable roster authority, deploy, or query season/SvS/meteorite until applicability is
 established.
+
+## Milestone — VS context gates and explicit event dimensions (2026-10-11)
+
+Version-matched Lua on the VM was inspected read-only. The daily VS tab is hidden when
+the alliance-duel activity is absent, finished or has no event info; the season tab is
+hidden unless the account is in a league match, while weekly remains visible. Once a tab
+is selected the UI sends `al.battle.rank.info` directly, with no further client-side
+participation guard. This strengthens the interpretation of fresh-guest empty payloads as
+event/account-context evidence rather than a protocol implementation failure. The wire
+query has no week dimension; an observed duel `weekEndTime` should anchor the explicit
+snapshot period label.
+
+Configuration now rejects omitted meteorite `grab_times` and season-contribution
+`sub_type`. Both zero values are legitimate wire dimensions, so absence must not silently
+select zero and masquerade as a confirmed active round/subtype. Explicit zero remains
+accepted. Focused analytics/SFS tests and Linux-targeted `go vet ./...` passed; a full
+Linux ARM64 race-suite run against the exact commit remains the next automated check.
+
+Immediate live next action remains unchanged: use an authorised participating session
+during an active VS period, preflight the read-only duel event context, derive the period
+from `weekEndTime`, then query days 1-6, weekly and season. Stop if applicability is not
+established; do not guess event identifiers or rounds.

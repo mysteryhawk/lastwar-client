@@ -59,6 +59,15 @@ No paging fields occur in this handler. The available ranking may be truncated; 
 
 Day is 1..6. A host-local weekday is not sufficient to identify the game day. Config requires explicit game period labels. Contradictory echoed type/day is rejected.
 
+Version-matched VM Lua adds a useful context boundary. `UIAllianceCompeteRankView.CheckIfTabVisible`
+hides the daily tab when the alliance-duel activity is absent, finished or lacks event info;
+it hides the season tab unless `LeagueMatchManager:CheckIfInMatch()` succeeds, while the
+weekly tab remains visible. `ChangeTab` sends the ranking request directly once a visible
+tab is chosen, and the message/manager contain no additional participation guard. Therefore
+a fresh guest's success-shaped empty result is consistent with missing event/account context,
+not a protocol failure. The ranking request carries no week identifier; an observed duel
+`weekEndTime` is the preferred stable input for the caller-supplied period label.
+
 ## Membership
 
 Upstream historical live evidence: `docs/live-validation.mdx`, 2026-10-06, documents `al.rank {allianceId:Utf}` and `list[]`. No new live test occurred here.

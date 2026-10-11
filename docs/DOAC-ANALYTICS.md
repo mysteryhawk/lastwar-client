@@ -33,6 +33,10 @@ Supported query kinds:
 
 Read [DOAC-PROTOCOL-FINDINGS.md](DOAC-PROTOCOL-FINDINGS.md) for handlers and uncertainty. Paging/round/event dimensions are exported in `parameters`; do not combine variants merely because their metric names match. Ranking results may contain non-DoAC players; reconcile against the roster by UID. The snapshot's `alliance_id` is collection context, not proof each ranking row belongs to that alliance. Daily/weekly VS are explicitly aid-filtered.
 
+`grab_times` and `season_devotes.sub_type` must be present even when their confirmed
+active-event value is zero. Omission is rejected so an unknown round or subtype cannot
+silently become a real wire value.
+
 For six-day VS comparisons, give all six daily queries the same confirmed game-week `period`, with `day` 1–6. Repeated polls are snapshots, not additional scores. Missing days remain unknown. THP/roster may use explicit game-day labels.
 
 ## Snapshot contract

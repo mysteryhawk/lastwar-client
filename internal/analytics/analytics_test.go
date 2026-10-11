@@ -231,6 +231,10 @@ func TestAnalyticsConfigRejectsUnknownOperations(t *testing.T) {
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"snapshots.jsonl","queries":[{"kind":"vs_daily","period":"test-day","day":1},{"kind":"thp","period":"test-day"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"collect","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"vs_daily","period":"p","day":7}]}`, false},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p","grab_times":0}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p"}]}`, false},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_devotes","period":"p","event_id":"event","sub_type":0}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_devotes","period":"p","event_id":"event"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"thp","period":"p"}],"accessToken":"secret"}`, false},
 	} {
 		p := filepath.Join(t.TempDir(), "config.json")
