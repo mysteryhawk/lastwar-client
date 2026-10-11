@@ -36,7 +36,7 @@ func TestEncodeFormSortedOrderMatchesGetServerListFields(t *testing.T) {
 
 	// Isolate GetServerListAs's body (GetServerList only forwards to it). A non-greedy match up to
 	// the first "\n}\n" (an unindented closer) lands on its real closing brace.
-	funcRe := regexp.MustCompile(`(?s)func GetServerListAs\(.*?\n\}\n`)
+	funcRe := regexp.MustCompile(`(?s)func GetServerListAs\(.*?\r?\n\}\r?\n`)
 	body := funcRe.FindString(string(src))
 	if body == "" {
 		t.Fatal("could not find GetServerList's body in gsl.go -- the regexp is likely out of sync with how the function is written there")
@@ -151,7 +151,7 @@ func TestLoginServerListResponShadowStructFieldsMatch(t *testing.T) {
 
 	tagRe := regexp.MustCompile(`json:"([a-zA-Z]+)"`)
 
-	realRe := regexp.MustCompile(`(?s)type LoginServerListRespon struct \{(.*?)\n\}\n`)
+	realRe := regexp.MustCompile(`(?s)type LoginServerListRespon struct \{(.*?)\r?\n\}\r?\n`)
 	realMatch := realRe.FindStringSubmatch(source)
 	if realMatch == nil {
 		t.Fatal("could not find LoginServerListRespon's struct literal in gsl.go -- the regexp is likely out of sync with how it's declared there")
@@ -164,7 +164,7 @@ func TestLoginServerListResponShadowStructFieldsMatch(t *testing.T) {
 		t.Fatal("found zero json-tagged fields in LoginServerListRespon -- the regexp is likely out of sync with how it's declared there")
 	}
 
-	shadowRe := regexp.MustCompile(`(?s)var raw struct \{(.*?)\n\t\}\n`)
+	shadowRe := regexp.MustCompile(`(?s)var raw struct \{(.*?)\r?\n\t\}\r?\n`)
 	shadowMatch := shadowRe.FindStringSubmatch(source)
 	if shadowMatch == nil {
 		t.Fatal("could not find UnmarshalJSON's shadow \"raw\" struct literal in gsl.go -- the regexp is likely out of sync with how it's declared there")
