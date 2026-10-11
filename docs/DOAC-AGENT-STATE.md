@@ -161,3 +161,44 @@ Client PR #1 title is now "Add correlated read-only DoAC analytics collector and
 Client separation commit `b83a3641a4af9e861e17204ef6b7604e01e20374` is reconciled locally.
 The example config was checked as valid JSON with distinct days 1–6 under one week label.
 This final handover-only update follows it. No uncommitted implementation remains.
+
+## Checkpoint — read-only VM and fresh-guest live verification (2026-10-11)
+
+SSH to the authorised Oracle VM succeeded. Read-only inspection found no running
+`lastwar-client`, tmux/screen session, user service or Podman container. The historical
+PID/session is gone. `/home/opc/lastwar-client` remains clean on `main` at `312071b`;
+the feature branch has not been deployed. `/home/opc/doac-dashboard` is still the
+manual prototype with `data/doac.sqlite3`; neither it nor the database was changed.
+
+The returning-guest distinction in the original handover was reproduced. The existing
+persisted guest resolved through GSL to source server 1972 and was rejected during
+Login with `ec=28/E011`, before any extension request. This is expected returning-guest
+authentication behaviour, not evidence of a protocol or target-server failure.
+
+Three isolated fresh guests authenticated on their first connection, on observed source
+servers 1241, 95 and 1262. Temporary guest state and private logs were removed after each
+probe. From a source-1262 session, `rank.get` with type 13/global 0/serverId 1723 returned
+100 THP rows. The response contained 11 case-insensitive DoAC markers and the row schema
+near them included `uid`, `heroPower`, `srcServer`, `allianceId`, `abbr` and
+`alliancename`. This is confirmed live evidence that a guest on another source server can
+read the server-1723 THP ranking; it does not establish complete alliance coverage.
+
+`al.battle.rank.info` returned success-shaped responses containing `rankInfo` but no
+`uid`/`score` rows for weekly type 1, daily type 0 day 1, and season type 2 across the
+fresh probes. Treat these as empty/access/event-context observations, not transport
+failures or proof that VS is unavailable. No roster, complete-roster semantics,
+season/SvS/meteorite request, gameplay-changing request, deployment or database write
+occurred.
+
+Checkpoint verification: both local worktrees were initially clean and matched their
+remote feature branches. Pull-request refs matched client `62cec50` and dashboard
+`e98bb93`; both PRs remain documented as draft. Dashboard importer tests passed (5).
+Dashboard Flask tests could not run in this shell because Flask is not installed. Go is
+also absent from local PATH, so previous full Go verification remains the latest automated
+evidence. These are environment limitations, not test failures in the implementation.
+
+Exact next action: in one fresh first-login guest session, privately extract the consistent
+`allianceId` from the DoAC THP rows, call read-only `al.rank` with that ID, and compare
+roster UIDs with the 100 returned THP UIDs. Record counts/coverage only and keep
+`complete_roster=false` until completeness is demonstrated. Then investigate why VS
+rankings are empty before moving to active season/SvS/meteorite identifiers and rounds.
