@@ -300,8 +300,8 @@ func (o *SFSObject) GoString() string {
 // SensitiveSFSKeys lists the field names this protocol is known to carry live credentials/tokens
 // under, across every login/session response and request this repo decodes or builds (see
 // login.go's Redact() call sites, identity.go's BuildLoginParams, and gsl.go's
-// LoginServerListRespon.At/Rt) -- loginKey/accountArr's sibling, gameUid, is deliberately not
-// included: it identifies an account but isn't a bearer credential by itself.
+// LoginServerListRespon.At/Rt). gameUid is not a bearer credential by itself, but it is a stable
+// account identifier and must not appear in logs or decoded captures.
 var SensitiveSFSKeys = map[string]bool{
 	"loginKey":    true,
 	"at":          true,
@@ -315,6 +315,7 @@ var SensitiveSFSKeys = map[string]bool{
 	"shumeiId": true,
 	"pw":       true,
 	"password": true,
+	"gameUid":  true,
 	// verifyCode is the live one-time email-verification code account.login.new sends to
 	// complete login (see login.go's finishParams.PutUtfString("verifyCode", code)).
 	"verifyCode": true,

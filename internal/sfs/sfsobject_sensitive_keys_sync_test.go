@@ -38,8 +38,7 @@ import (
 //     "delete_account_status", "forbidden_froce_merge", "isUseLz4", "isAll", "count", "time",
 //     "clientseq", "firstCmd", "serverId".
 //   - Entity/gameplay identifiers that identify something but aren't bearer credentials --
-//     the same class sfsobject.go's own top comment already carves "gameUid" out for
-//     ("identifies an account but isn't a bearer credential by itself"): "gameUid" itself,
+//     stable identifiers may also be sensitive even when they are not bearer credentials;
 //     "zn" (zone name), "uuid" (a building instance id, buildings.go), "uid"
 //     (a visitor/entity id, visitors.go), "uids" (a comma-joined list of mail message ids,
 //     mail.go), "type"/"action"/"option"/"operate"/"scienceId" (numeric gameplay
@@ -79,7 +78,6 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"firstCmd":              true,
 	"forbidden_froce_merge": true,
 	"fromCountry":           true,
-	"gameUid":               true,
 	"gmLogin":               true,
 	"google_available":      true,
 	"isAll":                 true,

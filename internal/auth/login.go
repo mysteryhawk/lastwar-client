@@ -277,7 +277,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	// Not "username": ident.Username -- that would print the operator's real persisted account
 	// username in cleartext at Info level on every run. Mirrors the emailLen pattern used
 	// elsewhere in this file for the same PII-in-a-plain-string reason (see step 6 below).
-	slog.Info("persisted state", "usernameLen", len(ident.Username), "gameUid", ident.GameUid, "loginKey", sfs.Redact(ident.LoginKey))
+	slog.Info("persisted state", "usernameLen", len(ident.Username), "gameUid", sfs.Redact(ident.GameUid), "loginKey", sfs.Redact(ident.LoginKey))
 
 	opt := gslOptFor(ident)
 	slog.Info("step 2: GSL getserverlist", "opt", opt.Opt)
@@ -298,7 +298,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		serverListLogCount = maxServerListLogEntries
 	}
 	for _, s := range lsr.ServerList[:serverListLogCount] {
-		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", s.GameUid, "status", s.Status)
+		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", sfs.Redact(s.GameUid.String()), "status", s.Status)
 	}
 	accessTok := ""
 	if lsr.At != nil {
@@ -419,7 +419,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 			_ = conn.Close()
 			return nil, session.SendStageError{Err: err}
 		}
-		slog.Info("login request sent, waiting for response", "gameUid", gameUid, "at", sfs.Redact(accessTok))
+		slog.Info("login request sent, waiting for response", "gameUid", sfs.Redact(gameUid), "at", sfs.Redact(accessTok))
 
 		env, err := session.WaitFor(conn, 15*time.Second, func(e *session.Envelope) bool {
 			return e.Controller == session.ControllerSystem && e.Action == session.ActionLogin
@@ -481,7 +481,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 			// identity the token belongs to.
 			newGameUid := redirectUid(siObj, "login.go base-zone Login")
 			slog.Info("serverInfo redirect: reconnecting to new address with the same access token", "newAddr", newAddr, "newZone", newZone,
-				"oldAddr", addr, "oldZone", zone, "newGameUid", newGameUid, "oldGameUid", gameUid, "accessTokLen", len(accessTok))
+				"oldAddr", addr, "oldZone", zone, "newGameUid", sfs.Redact(newGameUid), "oldGameUid", sfs.Redact(gameUid), "accessTokLen", len(accessTok))
 			_ = conn.Close()
 			addr = newAddr
 			if newZone != "" {
@@ -623,11 +623,11 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		// redaction. Build the error from explicitly-selected, individually-redacted fields
 		// instead of dumping the raw response.
 		return nil, fmt.Errorf("LOGIN-WITH-CODE FAILED (push): errorCode=%v gameUid=%s loginKey=%s: %w",
-			ec.Val, msg2.Params.GetString("gameUid"), sfs.Redact(msg2.Params.GetString("loginKey")), session.ErrAuthRejected)
+			ec.Val, sfs.Redact(msg2.Params.GetString("gameUid")), sfs.Redact(msg2.Params.GetString("loginKey")), session.ErrAuthRejected)
 	}
 	// Not msg2.Params.String() -- the full response carries loginKey (and
 	// accountArr) in cleartext, and String() does no field-level redaction.
-	slog.Info("login success", "gameUid", msg2.Params.GetString("gameUid"), "loginKey", sfs.Redact(msg2.Params.GetString("loginKey")))
+	slog.Info("login success", "gameUid", sfs.Redact(msg2.Params.GetString("gameUid")), "loginKey", sfs.Redact(msg2.Params.GetString("loginKey")))
 	result.Account = msg2.Params
 
 	// session.WarnIfWrongTypedField below adds a diagnostic for the "field present but wrong-typed"

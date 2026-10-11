@@ -108,6 +108,42 @@ func TestParseRankingStrictUIDValueAndAlliance(t *testing.T) {
 	}
 }
 
+func TestLiveObservedTHPAndEmptyVSShapes(t *testing.T) {
+	thp, _ := RankQuery(THPRankingType, 0, 1723, "THP", "heroPower", "p")
+	live := sfs.NewSFSObject()
+	live.PutUtfString("uid", "synthetic-uid")
+	live.PutUtfString("allianceId", "A")
+	live.PutInt("srcServer", 1723)
+	live.PutLong("heroPower", 123)
+	s := Snapshot{}
+	if err := ParseSnapshot(&s, thp, payload("serverRanking", live)); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status != "ok" || len(s.Records) != 1 || s.Records[0].AllianceID != "A" ||
+		s.Records[0].ServerID != 1723 || *s.Records[0].Value != 123 {
+		t.Fatalf("live THP aliases not preserved: %+v", s)
+	}
+	for kind, metric := range []string{"vs_daily", "vs_weekly", "vs_season"} {
+		day := int32(0)
+		if kind == 0 {
+			day = 1
+		}
+		q, _ := VSQuery(int32(kind), day, "p")
+		for _, empty := range []*sfs.SFSObject{payload("rankInfo"), func() *sfs.SFSObject {
+			p, table := sfs.NewSFSObject(), sfs.NewSFSObject()
+			p.PutSFSObject("rankInfo", table)
+			return p
+		}()} {
+			s = Snapshot{AllianceID: "A"}
+			if err := ParseSnapshot(&s, q, empty); err != nil || s.Status != "empty" ||
+				!s.PayloadPresent || len(s.Records) != 0 {
+				t.Fatalf("%s empty live shape: status=%s present=%v rows=%d err=%v",
+					metric, s.Status, s.PayloadPresent, len(s.Records), err)
+			}
+		}
+	}
+}
+
 func TestMissingEmptyErrorsAndRosterIdentity(t *testing.T) {
 	q, _ := RosterQuery("A", "p")
 	for _, tc := range []struct {

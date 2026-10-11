@@ -202,3 +202,31 @@ Exact next action: in one fresh first-login guest session, privately extract the
 roster UIDs with the 100 returned THP UIDs. Record counts/coverage only and keep
 `complete_roster=false` until completeness is demonstrated. Then investigate why VS
 rankings are empty before moving to active season/SvS/meteorite identifiers and rounds.
+
+## Milestone — roster coverage, live-shape tests and identifier privacy (2026-10-11)
+
+The exact next action above was completed without deploying the feature branch. A fresh
+guest on source server 477 retrieved 100 server-1723 THP rows; 11 were DoAC rows with 11
+unique UIDs. The privately derived single DoAC alliance ID was then sent to read-only
+`al.rank`. It returned 100 unique roster UIDs, all explicitly on server 1723. All 11 THP
+DoAC UIDs overlapped the roster and 89 roster UIDs had no THP row. A second fresh session
+on source server 439 repeated `al.rank` twice: both responses contained the same 100 UID
+set. No useful independent member-count field was present, so a possible 100-row cap
+remains unresolved and `complete_roster` stays false.
+
+Client changes add synthetic regressions for the observed `allianceId`/`srcServer` THP
+shape and success-shaped empty array/object VS payloads. `gameUid` is now treated as a
+stable private account identifier: SFS redaction and all identified production log/error
+sites mask it. This closes the cleartext identifier exposure observed during the returning-
+guest inspection; no real identifier is stored in tests or Git.
+
+Automated verification: Go 1.27.2 was downloaded from the official Go distribution.
+`internal/analytics` and `internal/sfs` tests passed. Linux auth/app test binaries compiled
+and Linux-targeted `go vet ./...` passed. Direct Windows execution of auth/app tests is
+not supported because existing tests use Unix `syscall.Mkfifo`; full Linux execution is
+the next verification step. No feature build was run on or deployed to the VM.
+
+Immediate next action: run the exact committed branch's full Go race suite in an isolated
+temporary VM checkout after approval, without game access or replacing the installed
+client. Then investigate VS context/period fields using aggregate-only diagnostics during
+an active event or with an authorised participating session. Do not enable roster authority.

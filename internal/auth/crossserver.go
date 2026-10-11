@@ -260,7 +260,7 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 			return nil, session.SendStageError{Err: err}
 		}
 		slog.Info("login request sent, waiting for response",
-			"gameUid", p.GameUid, "zone", zone, "accessTok", sfs.Redact(p.AccessTok), "shumeiBoxId", sfs.Redact(p.ShumeiBoxId))
+			"gameUid", sfs.Redact(p.GameUid), "zone", zone, "accessTok", sfs.Redact(p.AccessTok), "shumeiBoxId", sfs.Redact(p.ShumeiBoxId))
 
 		env, err := session.WaitFor(conn, 15*time.Second, func(e *session.Envelope) bool {
 			return e.Controller == session.ControllerSystem && e.Action == session.ActionLogin

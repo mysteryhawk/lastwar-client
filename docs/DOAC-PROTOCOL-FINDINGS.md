@@ -1,6 +1,29 @@
 # DoAC protocol findings — 2026-10-11
 
-These findings are **static analysis of the official historical client**, not live server verification. The collectors also have automated synthetic tests. Keep those evidence levels separate.
+Most findings below are **static analysis of the official historical client**. The dated
+live-verification section is the explicit exception. The collectors also have automated
+synthetic tests. Keep all three evidence levels separate.
+
+## Live verification — 2026-10-11
+
+Fresh first-login guests on several observed source servers authenticated successfully;
+returning guests continued to fail with E011 before extension requests. From fresh guests
+on source servers other than 1723, `rank.get` type 13/global 0/serverId 1723 returned
+100 rows with `heroPower`, stable UID, `srcServer`, `allianceId`, `abbr` and
+`alliancename`. Eleven rows were tagged DoAC in repeated probes. This confirms live
+cross-server visibility for that exact THP query shape, not for arbitrary rankings.
+
+The single consistent DoAC `allianceId` was derived privately from those rows and used in
+`al.rank`. The response contained a `list` with 100 unique UIDs, all explicitly on server
+1723. Two consecutive calls in one authenticated session returned the same UID set. All
+11 DoAC UIDs visible in the top-100 THP result were present in the roster; 89 observed
+roster UIDs had no THP row. Neither result is proven complete: 100 may be a server-side
+limit, and no independent member-count field was present. Keep `complete_roster=false`.
+
+Daily VS type 0/day 1, weekly type 1 and season type 2 returned correlated,
+success-shaped responses with `rankInfo` present but no UID/score rows. This establishes
+transport success and an empty response in those guest/event contexts only. It does not
+show that VS is unsupported or unavailable to a participating alliance account.
 
 ## Reproducible source
 
