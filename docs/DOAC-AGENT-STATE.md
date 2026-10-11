@@ -317,3 +317,12 @@ Automated verification so far: focused analytics/SFS tests and Linux-targeted ve
 Exact next action: run the committed branch's full isolated Linux race suite, then use an
 authorised server-1723 DoAC member session to collect `al.rank` and `desert_thp` in the same
 session. Accept full THP coverage only if the UID sets match; keep missing rows unknown.
+
+Checkpoint verification: exact commit `e0d475f` passed `go test -p 1 ./... -race`,
+`go vet ./...` and `go build ./cmd/lastwar-client` on Linux ARM64 with checksum-verified
+Go 1.27.2 in an isolated temporary directory. No binary was deployed and no game request
+was sent. The only available persisted VM states are the previously inspected returning
+guest contexts, not an authorised DoAC/server-1723 member session. Reusing or creating a
+guest cannot validate this implicit own-alliance endpoint. Exact next action is therefore
+to provide/use an authorised DoAC member session privately, then compare same-session
+`al.rank` and `desert_thp` UID sets and record aggregate counts only.
