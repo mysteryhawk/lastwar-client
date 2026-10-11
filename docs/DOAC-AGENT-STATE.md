@@ -147,3 +147,17 @@ Next: read the dashboard's own docs/DOAC-AGENT-STATE.md and docs/SNAPSHOT-CONTRA
 continue live verification using an SSH-capable environment. Current Work network limitation
 is unchanged. No Oracle changes, credentials, live game calls, main merges or real member
 data were involved.
+
+## Independent dashboard verification confirmed
+
+Dashboard GitHub Python CI passed for `795117a` (implementation) and `16a3c73`
+(handover), with runs 38100074657 and 38100173930 respectively. Its local Gunicorn
+factory --check-config, real localhost /health and protected-page redirect passed.
+Final dashboard verification state: `e98bb93a0e22133d603841d4c7357793ab8d5756`.
+Draft PR https://github.com/mysteryhawk/lastwar-dashboard/pull/1 includes these results.
+No browser/container/VM or live metric verification was performed.
+
+Client PR #1 title is now "Add correlated read-only DoAC analytics collector and JSONL exports".
+Client separation commit `b83a3641a4af9e861e17204ef6b7604e01e20374` is reconciled locally.
+The example config was checked as valid JSON with distinct days 1–6 under one week label.
+This final handover-only update follows it. No uncommitted implementation remains.
