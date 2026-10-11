@@ -272,3 +272,27 @@ Immediate live next action remains unchanged: use an authorised participating se
 during an active VS period, preflight the read-only duel event context, derive the period
 from `weekEndTime`, then query days 1-6, weekly and season. Stop if applicability is not
 established; do not guess event identifiers or rounds.
+
+## Checkpoint — event-dimension milestone verified (2026-10-11)
+
+The implementation milestone is pushed as `92520b2`; two follow-up test/privacy fixes are
+`58c4b05` and `ecf9f88`. The first parallel Linux ARM64 race run exposed three pre-existing
+or newly visible checks: two GSL source-regex tests assumed LF-only source, and one slow app
+test missed its expected malformed-push warning under package-level resource contention.
+The GSL checks now accept LF and CRLF and pass locally. The app test passed alone under the
+race detector. A subsequent sequential full run exposed the credential-leak lint rejecting
+three `.String()` conversions directly inside log sinks even though their values were
+wrapped by `sfs.Redact`; conversion/redaction now happens before logging.
+
+Automated verification of exact commit `ecf9f88` on Linux ARM64 with checksum-verified Go
+1.27.2: `go test -p 1 ./... -race`, `go vet ./...` and
+`go build ./cmd/lastwar-client` all passed. Temporary source/toolchain directories were
+removed. This was isolated automated verification, not a deployment or live game test.
+
+Confirmed live/static boundary: THP and observed roster access remain live-verified;
+VS empty payloads remain live observations from fresh non-participating guests; the daily
+and season UI context gates are static Lua evidence. No participating session or active
+event identifier is available. Exact next action is therefore still the authorised active-
+VS preflight and aggregate-only days 1-6/weekly/season capture described above. After that,
+test season power type 2 before type 4; only query devotes, meteorite or candidate SvS when
+their event ID/subtype, round or applicability is observed rather than defaulted or guessed.
