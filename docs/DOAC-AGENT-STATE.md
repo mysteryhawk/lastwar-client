@@ -239,7 +239,8 @@ archive of that exact commit in a new VM `/tmp` directory. The VM's installed Go
 was too old for `go.mod`, so the official Go 1.27.2 Linux ARM64 archive was checksum-
 verified against go.dev and unpacked only inside the temporary directory. `go test ./...
 -race`, `go vet ./...` and `go build ./cmd/lastwar-client` then completed successfully.
-The trap removed the source, toolchain and transfer archives. This is automated Linux
+Explicit post-run cleanup removed the source, toolchain and transfer archives after the
+initial trap did not do so. This is automated Linux
 verification only: no feature binary was deployed and no game request was made.
 
 Current blocker and exact next action: daily/weekly/season VS responses remain live-
