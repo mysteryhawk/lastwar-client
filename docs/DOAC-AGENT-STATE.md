@@ -6,11 +6,11 @@ Updated: 2026-10-11. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
 
 - Branch `feature/interactive-continuous-reader`; draft PR #1. Main unchanged, no VM deployment, no game-server calls in this session.
 - Committed transport milestone: `20667c2` (dispatcher, typed scalars, updated tests/state). Initial state: `bbfcd76`.
-- Implemented next milestone: read-only VS daily/weekly/season, THP type 13, roster, season personal power/devotes, candidate SvS and meteorite queries; strict parsers; private JSONL CLI; transactional SQLite importer.
+- Committed collector/storage milestone `874b4d7`: read-only VS daily/weekly/season, THP type 13, roster, season personal power/devotes, candidate SvS and meteorite queries; strict parsers; private JSONL CLI; transactional SQLite importer.
 - Automated verification: original full suite and transport/app/SFS race suite passed; latest collector/CLI race tests and five Python importer tests passed. Whole-repository `go test ./... -race`, `go vet ./...`, native build, Linux ARM64 build and gofmt checks passed. Python tests also added to CI.
 - Live verification: none here. Historical upstream roster evidence remains clearly labelled. Full-roster marking deliberately disabled until live completeness/access semantics are checked.
 - Blocked: target-server/alliance live session, actual dashboard schema and active event IDs/rounds. THP constant is no longer blocked: recovered from the public historical Lua bundle.
-- Immediate next action: commit this milestone and update PR; then live validation/integration requires authorised environment access.
+- Immediate next action: obtain authorised access to the existing session/dashboard environment for live validation and schema inspection. Local development milestone is complete; no uncommitted implementation remains. PR #1 has been rewritten and remains draft.
 
 ## Architecture and environment
 
@@ -70,7 +70,7 @@ Experiments: baseline draft failed compile (handler signature); corrected full s
 Failed setup experiments to avoid repeating: apt-get download JDK failed because package index was unavailable; use JDK when installed or ECJ Java compiler. Web retrieval tool could not open the binary Lua archive; direct HTTPS download succeeded. No need to request VM-only Lua files for these findings.
 
 Remaining priorities:
-1. Finish full race/build/vet/ARM checks; commit code/tests/docs together and rewrite PR around read-only analytics.
+1. Completed: full race/build/vet/ARM checks; implementation/tests/docs committed as `874b4d7`; PR rewritten. Proceed to live validation when environment access is available.
 2. In an authorised existing VM/session environment, collect redacted payload schemas for VS/THP/roster; measure idle Recv-Q and compare roster UIDs against THP coverage. Do not create a guest automatically or mislabel server 1456 as 1723.
 3. Confirm roster is complete before enabling complete_roster; then verify membership events from successive real snapshots.
 4. Identify active season event ID/subtype, meteorite round and SvS event applicability; validate builders against live replies. Unknown structures remain missing implementation/evidence, not claimed unavailable.
@@ -80,3 +80,14 @@ Remaining priorities:
 Final safety review refinement: writer errors now terminate the dispatcher even after the caller cancelled; top-level params are copied before asynchronous send. No live data/captures/authentication material created or committed. Source records remain private, with ignored JSONL/SQLite outputs.
 
 Final ownership review: `ReadEnvelope` now rejects callers after dispatcher ownership starts (`ErrReaderOwned`); bootstrap reads and ownership transfer are serialised. This prevents accidental competing readers instead of relying only on documentation. Normal-login analytics branch removed as unreachable because analytics requires reconnect configuration.
+
+## End-of-session verification and repository state
+
+- Final implementation head: `874b4d7a7c43a326ef99e050f3cb6384f2752d56`. Transport milestone: `20667c2caecde0020c86edbbbc1cff00299a8653`. State recovery: `bbfcd76e02ac962bc8d97f97078fc5f6f48ea2f0`. This final handover update follows the implementation head.
+- PR #1 title: "Add correlated read-only DoAC analytics collector and SQLite history exports". Open, draft, no merge/deployment. Main remains `312071b9b561fbc06e80b411b7d3e1bd228fd63c`.
+- Final ownership-change whole-repository `go test ./... -race` passed: app ~76s, game ~66s, SFS ~36s; all packages passed. Dispatcher tests also repeated three times under race detector. `go vet ./...`, native build, Linux ARM64 build, gofmt and `git diff --check` passed. Five Python importer tests passed. CLI help exposes analytics flag correctly. No live game-server test occurred.
+- GitHub connector reported no workflow runs or status checks for the pushed implementation head at inspection. **Do not claim remote CI passed**; local checks are the verification evidence. Python ingestion is included in the workflow for future CI runs.
+- Fetch after connector push reconciled local checkout with remote, with no outstanding implementation changes. Final agent-state update is committed separately to leave a precise restart point.
+- Files added: `internal/analytics/{types,config,parse,collector,analytics_test}.go`, `internal/app/analytics{,_test}.go`, `internal/session/dispatcher{,_test}.go`, `internal/sfs/json_scalar{,_test}.go`, analytics key classification test, `tools/{ingest_analytics,test_ingest_analytics,extract_lua}.py`, `analytics.example.json`, usage/protocol/state docs. Initial queue file deleted; existing interactive/main/conn tests and CI/gitignore updated. Original handover preserved.
+
+Access needed next: an authorised execution environment for the existing Oracle VM/session, or equivalent local authenticated session environment, to issue read-only ranking requests and inspect bootstrap source-server metadata; read access to `/home/opc/doac-dashboard` source/schema for integration. No private keys/session tokens should be put in repository or conversation. Do not deploy, merge or alter live game state. With no access currently available, remaining live validation and actual Flask integration cannot be truthfully completed.
