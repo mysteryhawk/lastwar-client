@@ -6,9 +6,10 @@ Updated: 2026-10-11. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
 
 - Active branch: `feature/interactive-continuous-reader`; draft PR #1. Main remains unchanged.
 - Recovery complete: read original handover, PR diff, repository session/app/SFS source and existing tests. Earlier conversation retrieval confirms the handover; no additional THP constant or dashboard schema recovered.
-- Developing: replace command-name queue with a continuous, `_id`-correlated dispatcher, then typed read-only analytics and historical exports.
+- Automated verification: continuous dispatcher and typed scalars implemented; full `go test ./...` passed after correcting draft signature and fake-server ID echoes.
+- Developing: typed read-only analytics, historical exports and targeted Lua investigation.
 - Blocked: live game validation and VM-only Lua constants/schema require environment access not currently available. No credentials requested or used.
-- Immediate next action: obtain the repository-required Go toolchain, establish baseline tests, implement dispatcher.
+- Immediate next action: implement analytics collectors and recover THP constant from the publicly hosted historical Lua bundle.
 
 ## Architecture and environment
 
@@ -42,3 +43,13 @@ Oracle Linux ARM VM paths from handover: `/home/opc/lastwar-client`, `/home/opc/
 ## Repository and handover discipline
 
 This file is the living record. Original handover stays relatively stable. Each milestone must commit code/tests and updated state together. Distinguish automated verification, upstream historical live observations, this session's live tests (none), and implementation awaiting live validation. Never store private captures, credentials or real member data in GitHub.
+
+## Milestone 1 — transport and typed parameters
+
+`internal/session/dispatcher.go`: idempotent `GameConn.StartDispatcher`, sole continuous reader, 128 pending requests maximum, registration before send, command plus Int ID correlation, context deadlines/cancellation, stale/unmatched counters and error propagation. Unmatched envelopes are discarded without queueing. Bootstrap and existing synchronous APIs remain intact; do not call them after starting dispatcher. Complete-frame object decode failures are safely skipped (`EnvelopeDecodeError`); packet/read failures terminate the dispatcher, including read timeouts, to avoid partial-frame desynchronisation. `Close` waits for reader shutdown.
+
+`interactive.go` uses the dispatcher and preserves original handler signature. Existing fake replies now echo the incoming ID. `sfs.JSONScalar` supports explicit `{"$sfs":"int","value":1}` wrappers (byte/short/int/long/double/bool/utf) with range checks and no credential values in errors. Known Lua command numeric fields use Int automatically; generic integers remain Long for compatibility.
+
+Go 1.27.2 obtained from official go.dev into scratch `/tmp/doac-toolchain`; no dependency change. Initial full test failed with draft handler signature errors; corrected implementation full tests passed. New net.Pipe tests passed for 2001 idle pushes, wrong command/ID type, push alias, concurrent out-of-order matching, stale timeout reply, pre-cancelled contexts, disconnect/terminal push, corrupt complete packet, deadline reset and caller-ID rejection. Race run in progress at this milestone.
+
+Git CLI clone/fetch works but HTTPS push lacks credentials. Use connected GitHub create_tree/create_commit/update_ref with expected head; do not request PATs. Initial state committed remotely as `bbfcd76`. Reconcile local branch with fetch/reset-soft after connector commits.

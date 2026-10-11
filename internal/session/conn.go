@@ -47,6 +47,9 @@ type GameConn struct {
 	// the real client's FutureManager.reset() does on reconnect.
 	extSent atomic.Int32
 
+	dispatchOnce sync.Once
+	dispatcher   *Dispatcher
+
 	// lastCmd is the cmd of the most recent SendExtension, logged beside each score push so a
 	// push.act.score.obtain can be tied to the action that earned it (see logScorePush).
 	lastCmd atomic.Pointer[string]
@@ -179,6 +182,10 @@ func (c *GameConn) SendEnvelope(controller byte, action int16, content *sfs.SFSO
 // caller's params are copied, not modified, so a params object can be reused across sends.
 func (c *GameConn) SendExtension(cmd string, params *sfs.SFSObject) error {
 	id := c.extSent.Add(1) + loginFutureID
+	return c.sendExtensionID(cmd, params, id)
+}
+
+func (c *GameConn) sendExtensionID(cmd string, params *sfs.SFSObject, id int32) error {
 	withID := sfs.NewSFSObject()
 	if params != nil {
 		for _, k := range params.Keys() {
@@ -223,7 +230,7 @@ func (c *GameConn) readEnvelope() (*Envelope, error) {
 	}
 	obj, err := sfs.DecodeObject(body)
 	if err != nil {
-		return nil, fmt.Errorf("decode envelope: %w", err)
+		return nil, &EnvelopeDecodeError{Err: err}
 	}
 	env := &Envelope{}
 	// Round-40 fix: all three fields below used to silently coerce a present-but-wrong-typed

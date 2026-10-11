@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -98,9 +99,9 @@ const maxControlPipeLineSize = 1024 * 1024
 // exercised through -interactive.
 func RunInteractive(conn *session.GameConn, controlPipe string) {
 	slog.Info("interactive mode: reading commands", "controlPipe", controlPipe)
-	responses := startInteractiveReader(conn)
+	conn.StartDispatcher()
 	slog.Info(`format: cmd.name {"key":"value"} (params optional)`)
-	slog.Info("example usage", "example", `echo 'building.production.collect {"uuid":123}' > `+controlPipe)
+	slog.Info("example usage", "example", `echo 'al.battle.rank.info {"type":0,"day":1}' > `+controlPipe)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -185,7 +186,7 @@ func RunInteractive(conn *session.GameConn, controlPipe string) {
 			if line == "" {
 				continue
 			}
-			handleInteractiveLine(conn, responses, line)
+			handleInteractiveLine(conn, line)
 		}
 		_ = f.Close()
 		if err := scanner.Err(); err != nil {
@@ -271,7 +272,7 @@ func openControlPipeWithRetry(controlPipe string) (*os.File, error) {
 	return nil, err
 }
 
-func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveResult, line string) {
+func handleInteractiveLine(conn *session.GameConn, line string) {
 	cmd, rest, found := strings.Cut(line, " ")
 	rest = strings.TrimSpace(rest)
 
@@ -340,7 +341,7 @@ func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveR
 			return
 		}
 		for k, v := range raw {
-			if !putJSONValue(params, k, v) {
+			if !putCommandJSONValue(params, cmd, k, v) {
 				slog.Error("aborting send: unsupported param value, would send incomplete params", "cmd", cmd, "key", k)
 				return
 			}
@@ -352,7 +353,11 @@ func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveR
 	// loginKey/accessToken/airKey/shumeiBoxId in cleartext. StringRedacted masks those fields
 	// (see sfsobject.go) instead of dumping everything raw.
 	slog.Info("sending command", "cmd", cmd, "params", params.StringRedacted())
-	if err := conn.SendExtension(cmd, params); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), session.DefaultCmdTimeout)
+	defer cancel()
+	msg, err := conn.StartDispatcher().Request(ctx, cmd, params)
+	var sendErr session.SendStageError
+	if errors.As(err, &sendErr) {
 		// See interactiveShuttingDown's own doc comment: a send failure caused by RunInteractive's
 		// own signal-handling goroutine already closing this connection is an expected side effect
 		// of that shutdown, not a new dead-connection discovery -- return quietly instead of racing
@@ -376,7 +381,6 @@ func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveR
 		os.Exit(1)
 	}
 
-	msg, err := waitInteractiveResponse(responses, session.DefaultCmdTimeout, cmd, "push."+cmd)
 	if err != nil {
 		// Same net.Error/Timeout() distinction round 21 applied at 6+ other call sites
 		// (buildings.go, mail.go, visitors.go, alliance.go) -- and that's already honored two
@@ -414,6 +418,13 @@ func handleInteractiveLine(conn *session.GameConn, responses <-chan interactiveR
 
 func putJSONValue(o *sfs.SFSObject, key string, v any) bool {
 	switch val := v.(type) {
+	case map[string]any:
+		scalar, err := sfs.JSONScalar(val)
+		if err != nil {
+			slog.Error("invalid typed SFS scalar", "key", key)
+			return false
+		}
+		o.PutValue(key, scalar)
 	case string:
 		o.PutUtfString(key, val)
 	case bool:
@@ -445,4 +456,23 @@ func putJSONValue(o *sfs.SFSObject, key string, v any) bool {
 		return false
 	}
 	return true
+}
+
+// Historical Lua handlers specify these Int fields. Generic numbers retain
+// Long typing for compatibility; explicit wrappers override it.
+func putCommandJSONValue(o *sfs.SFSObject, cmd, key string, v any) bool {
+	wantInt := (cmd == "al.battle.rank.info" && key == "day") ||
+		(cmd == "rank.get" && (key == "type" || key == "global" || key == "serverId")) ||
+		(cmd == "lw.season.rank.info" && (key == "rank_type" || key == "pageSize")) ||
+		(cmd == "server.rank" && key == "ismerge")
+	if n, ok := v.(json.Number); ok && wantInt {
+		scalar, err := sfs.JSONScalar(map[string]any{"$sfs": "int", "value": n})
+		if err != nil {
+			slog.Error("invalid Int parameter", "key", key)
+			return false
+		}
+		o.PutValue(key, scalar)
+		return true
+	}
+	return putJSONValue(o, key, v)
 }

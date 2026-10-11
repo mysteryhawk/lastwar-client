@@ -70,6 +70,7 @@ func TestHandleInteractiveLineSendsParsedCommand(t *testing.T) {
 		gotCh <- got{msg.Cmd, msg.Params}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension(msg.Cmd, resp)
 	}()
 
@@ -124,6 +125,7 @@ func TestHandleInteractiveLineRedactsCredentialFields(t *testing.T) {
 			return
 		}
 		resp := sfs.NewSFSObject()
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		resp.PutUtfString("loginKey", secretLoginKey)
 		resp.PutUtfString("gameUid", "g1")
 		_ = server.SendExtension(msg.Cmd, resp)
@@ -339,6 +341,7 @@ func TestHandleInteractiveLineSendsBareCommandWithNoSpace(t *testing.T) {
 		gotCh <- got{msg.Cmd, msg.Params}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension(msg.Cmd, resp)
 	}()
 
@@ -439,14 +442,17 @@ func TestHandleInteractiveLineSurvivesCorruptPushWhileWaitingForResponse(t *test
 	client, server := session.NewPipeGameConnPair(t)
 
 	go func() {
-		if _, err := server.ReadEnvelope(); err != nil {
+		env, err := server.ReadEnvelope()
+		if err != nil {
 			return
 		}
+		msg, _ := env.AsExtension()
 		if _, err := server.RawConn().Write(testutil.MustEncodeCorruptPacket(t, "field", "value")); err != nil {
 			return
 		}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension("some.command", resp)
 	}()
 
