@@ -272,6 +272,8 @@ func openControlPipeWithRetry(controlPipe string) (*os.File, error) {
 	return nil, err
 }
 
+var interactiveCommandTimeout = session.DefaultCmdTimeout
+
 func handleInteractiveLine(conn *session.GameConn, line string) {
 	cmd, rest, found := strings.Cut(line, " ")
 	rest = strings.TrimSpace(rest)
@@ -353,7 +355,7 @@ func handleInteractiveLine(conn *session.GameConn, line string) {
 	// loginKey/accessToken/airKey/shumeiBoxId in cleartext. StringRedacted masks those fields
 	// (see sfsobject.go) instead of dumping everything raw.
 	slog.Info("sending command", "cmd", cmd, "params", params.StringRedacted())
-	ctx, cancel := context.WithTimeout(context.Background(), session.DefaultCmdTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), interactiveCommandTimeout)
 	defer cancel()
 	msg, err := conn.StartDispatcher().Request(ctx, cmd, params)
 	var sendErr session.SendStageError

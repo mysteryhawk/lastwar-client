@@ -7,6 +7,7 @@ import (
 	"lastwar-client/internal/sfs"
 	"log/slog"
 	"math"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,8 @@ type EnvelopeDecodeError struct{ Err error }
 
 func (e *EnvelopeDecodeError) Error() string { return "decode envelope: " + e.Err.Error() }
 func (e *EnvelopeDecodeError) Unwrap() error { return e.Err }
+
+var ErrReaderOwned = errors.New("socket reader belongs to dispatcher")
 
 var ErrTooManyRequests = errors.New("too many pending requests")
 
@@ -38,6 +41,8 @@ type Dispatcher struct {
 	err       error
 	done      chan struct{}
 	stopped   chan struct{}
+	writes    chan struct{}
+	exhausted bool
 	unmatched atomic.Uint64
 	malformed atomic.Uint64
 }
@@ -46,13 +51,16 @@ type Dispatcher struct {
 // have returned. Request deadlines use contexts, never socket read deadlines.
 func (c *GameConn) StartDispatcher() *Dispatcher {
 	c.dispatchOnce.Do(func() {
-		d := &Dispatcher{conn: c, pending: make(map[int32]*pendingRequest), done: make(chan struct{}), stopped: make(chan struct{})}
+		c.rmu.Lock()
+		defer c.rmu.Unlock()
+		d := &Dispatcher{conn: c, pending: make(map[int32]*pendingRequest), done: make(chan struct{}), stopped: make(chan struct{}), writes: make(chan struct{}, maxPendingRequests)}
 		c.dispatcher = d
 		if err := c.SetReadDeadline(time.Time{}); err != nil {
 			d.fail(err)
 			close(d.stopped)
 			return
 		}
+		c.dispatchActive.Store(true)
 		go d.readLoop()
 	})
 	return c.dispatcher
@@ -78,13 +86,17 @@ func (d *Dispatcher) fail(err error) {
 func (d *Dispatcher) readLoop() {
 	defer close(d.stopped)
 	for {
-		env, err := d.conn.ReadEnvelope()
+		env, err := d.conn.readEnvelopeLoop()
 		if err != nil {
 			var decode *EnvelopeDecodeError
 			if errors.As(err, &decode) {
 				d.malformed.Add(1)
 				slog.Warn("discarding undecodable envelope")
 				continue
+			}
+			var timeout net.Error
+			if errors.As(err, &timeout) && timeout.Timeout() {
+				err = sfs.NewDeadConnError(err)
 			}
 			d.fail(err)
 			_ = d.conn.Close()
@@ -131,12 +143,24 @@ func (d *Dispatcher) Request(ctx context.Context, cmd string, params *sfs.SFSObj
 		d.mu.Unlock()
 		return nil, err
 	}
+	if d.exhausted {
+		d.mu.Unlock()
+		return nil, errors.New("request ID sequence exhausted; reconnect")
+	}
 	if len(d.pending) >= maxPendingRequests {
+		d.mu.Unlock()
+		return nil, ErrTooManyRequests
+	}
+	select {
+	case d.writes <- struct{}{}:
+	default:
 		d.mu.Unlock()
 		return nil, ErrTooManyRequests
 	}
 	id := d.conn.extSent.Add(1) + loginFutureID
 	if id <= loginFutureID || id == math.MaxInt32 {
+		d.exhausted = true
+		<-d.writes
 		d.mu.Unlock()
 		return nil, errors.New("request ID sequence exhausted; reconnect")
 	}
@@ -147,7 +171,23 @@ func (d *Dispatcher) Request(ctx context.Context, cmd string, params *sfs.SFSObj
 	// The transport already bounds writes to ten seconds. Keep the request's
 	// context responsive even if a peer stops reading; Close unblocks that write.
 	sent := make(chan error, 1)
-	go func() { sent <- d.conn.sendExtensionID(cmd, params, id) }()
+	// Copy the top-level parameters before returning on a cancelled context.
+	frozen := sfs.NewSFSObject()
+	if params != nil {
+		for _, key := range params.Keys() {
+			value, _ := params.Get(key)
+			frozen.PutValue(key, value)
+		}
+	}
+	go func() {
+		defer func() { <-d.writes }()
+		err := d.conn.sendExtensionID(cmd, frozen, id)
+		if err != nil {
+			d.fail(SendStageError{Err: err})
+			_ = d.conn.Close()
+		}
+		sent <- err
+	}()
 	select {
 	case err := <-sent:
 		if err != nil {

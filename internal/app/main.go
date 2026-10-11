@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"lastwar-client/internal/analytics"
 	"lastwar-client/internal/auth"
 	"lastwar-client/internal/crypto"
 	"lastwar-client/internal/game"
@@ -72,6 +73,7 @@ func Run() {
 	codePipe := fs.String("code-pipe", "", "path to a FIFO to read the verification code from (blocks open until a writer connects); if empty, reads from stdin")
 	collect := fs.Bool("collect", false, "collect resources from every confirmed building type, plus the Armed Truck/Overlord idle rewards, greeting city visitors, helping alliance members, claiming all mail and alliance gifts, donating to the recommended alliance tech, and both once-a-day VIP claims, after login")
 	listBuildings := fs.Bool("list-buildings", false, "print every owned building's details (a summary line, a per-type line, and a per-instance line with uuid/level/pointId and a full raw redacted dump -- not just id/type/level) to stdout. NOTE: this print already happens by DEFAULT whenever -collect is NOT passed -- this flag only matters when -collect IS also passed, where it forces the same print to happen alongside collection instead of being skipped; the process still exits after -collect/-list-buildings finish (assuming -collect, if passed, didn't fail fatally first) unless -interactive is also set")
+	analyticsPath := fs.String("analytics", "", "read-only analytics config: export UID-keyed JSONL and exit; incompatible with -collect, -run-feature, -email and -interactive")
 	interactive := fs.String("interactive", "", "stay connected and read ad-hoc test commands from this control FIFO instead of exiting; only flat scalar param values (strings/bools/numbers) are supported -- nested JSON objects/arrays are rejected with a logged error and abort the whole send (see interactive.go)")
 
 	csIP := fs.String("cs-ip", "", "skip normal login; reconnect directly to this ip (pipe-delimited ok) using an already-known role (from accountArr/push.account.login.new). Optional when an access token is given (-cs-at or a session config): without -cs-ip/-cs-port or a session config ip/port, GSL getserverlist looks the role's game server up, and it does so again if the given address doesn't answer")
@@ -277,6 +279,20 @@ func Run() {
 	// no-op the rest of this file's flags don't rely on either.
 	warnIfDecodeLabelIgnored(*decodeStream, *decodeLabel)
 
+	var analyticsCfg *analytics.Config
+	if *analyticsPath != "" {
+		if *collect || *runFeature != "" || *interactive != "" || *email != "" {
+			slog.Error("-analytics cannot be combined with gameplay, interactive or account-binding flags")
+			os.Exit(1)
+		}
+		var err error
+		analyticsCfg, err = analytics.LoadConfig(*analyticsPath)
+		if err != nil {
+			slog.Error("analytics configuration failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	if *noConfig && *configPath != "" {
 		slog.Warn("ignoring -config because -no-config is also set")
 	}
@@ -362,6 +378,11 @@ func Run() {
 		}
 	}
 
+	if analyticsCfg != nil && !crossServer {
+		slog.Error("-analytics requires an existing authenticated reconnect configuration; guest account creation is disabled in analytics mode")
+		os.Exit(1)
+	}
+
 	if crossServer {
 		if *email != "" {
 			slog.Warn("ignoring -email because -cs-ip/-cs-rt/-cs-at is set (cross-server reconnect doesn't use the email flow)")
@@ -374,7 +395,7 @@ func Run() {
 			deviceID: *csDeviceID, shumeiBoxId: *csShumei, rt: *csRt, at: *csAt,
 			iosMode: *csIOS, appVersion: cfgAppVersion, versionCode: cfgVersionCode,
 			features: cfgFeatures, duelPolicy: cfgDuelPolicy, runFeature: *runFeature, runAnyway: *runAnyway,
-			interactive: *interactive, handshake: *handshake,
+			interactive: *interactive, handshake: *handshake, analyticsCfg: analyticsCfg,
 			collect: *collect, listBuildings: *listBuildings, configSavePath: cfgSource,
 			ipExplicit: csIPSetExplicitly, portExplicit: csPortSetExplicitly,
 			zoneExplicit: csZoneSetExplicitly, gameUidExplicit: csGameUidSetExplicitly,
@@ -681,7 +702,7 @@ func warnIfInteractiveExplicitlyEmpty(explicit bool, interactive string) {
 // detectSwallowedFlagValue) so it reads as a deliberate, reviewable scoping decision, matching this
 // file's existing crossServerFlagNames convention just below.
 var stringFlagSwallowGuardNames = map[string]bool{
-	"email": true, "code-pipe": true, "interactive": true,
+	"email": true, "code-pipe": true, "interactive": true, "analytics": true,
 	"cs-ip": true, "cs-zone": true, "cs-gameuid": true, "cs-deviceid": true,
 	"cs-shumei": true, "cs-rt": true, "cs-at": true,
 	"config": true, "decode-stream": true, "decode-label": true, "log-level": true,
@@ -927,6 +948,7 @@ func printVersion() {
 }
 
 type crossServerTestOpts struct {
+	analyticsCfg                                                  *analytics.Config
 	ip, zone, gameUid, deviceID, shumeiBoxId, rt, at, interactive string
 	appVersion, versionCode                                       string            // session config only; see SessionConfig.AppVersion
 	features                                                      map[string]bool   // session config only; see SessionConfig.Features
@@ -1351,6 +1373,21 @@ func runCrossServerTest(o crossServerTestOpts) {
 				}
 			}
 		}
+	}
+
+	if o.analyticsCfg != nil {
+		initPush, initErr := game.FetchInit(conn, 15*time.Second)
+		if initErr != nil {
+			slog.Warn("analytics init metadata unavailable")
+		}
+		source := initPush.Object("user").GetInt("serverId")
+		if err := runAnalytics(conn, o.analyticsCfg, source); err != nil {
+			slog.Error("analytics failed", "error", err)
+			exitIfSessionEnded(err, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
 	}
 
 	slog.Info("fetching building list (push.init.build)")

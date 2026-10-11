@@ -1,0 +1,12 @@
+{
+  "target_server": 1723,
+  "alliance_id": "REPLACE_WITH_CONFIRMED_ALLIANCE_ID",
+  "output": "/tmp/doac-snapshots.jsonl",
+  "queries": [
+    {"kind": "membership", "period": "REPLACE_GAME_DAY"},
+    {"kind": "thp", "period": "REPLACE_GAME_DAY", "global": 0},
+    {"kind": "vs_daily", "period": "REPLACE_VS_GAME_DAY", "day": 1},
+    {"kind": "vs_weekly", "period": "REPLACE_VS_WEEK"},
+    {"kind": "vs_season", "period": "REPLACE_VS_SEASON"}
+  ]
+}

@@ -38,9 +38,11 @@ type Envelope struct {
 
 // GameConn is a raw (plaintext, connectionType 0) SFS2X socket connection.
 type GameConn struct {
-	conn   net.Conn
-	reader *bufio.Reader
-	wmu    sync.Mutex
+	conn           net.Conn
+	reader         *bufio.Reader
+	wmu            sync.Mutex
+	rmu            sync.Mutex
+	dispatchActive atomic.Bool
 
 	// extSent counts SendExtension calls on this connection; SendExtension derives each request's
 	// `_id` from it (see loginFutureID). A fresh GameConn per dial gives the per-connection reset
@@ -211,6 +213,15 @@ func (c *GameConn) sendExtensionID(cmd string, params *sfs.SFSObject, id int32) 
 // rather than in each read loop means WaitFor/SendAndWait, DoHandshake, login's waitForInitPush
 // and game's FetchInit all stop on it through the dead-connection check they already make.
 func (c *GameConn) ReadEnvelope() (*Envelope, error) {
+	c.rmu.Lock()
+	defer c.rmu.Unlock()
+	if c.dispatchActive.Load() {
+		return nil, ErrReaderOwned
+	}
+	return c.readEnvelopeLoop()
+}
+
+func (c *GameConn) readEnvelopeLoop() (*Envelope, error) {
 	for {
 		env, err := c.readEnvelope()
 		if err == nil && c.skipClientPings && env.Controller == ControllerSystem && env.Action == ActionPingPong {

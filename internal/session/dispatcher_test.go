@@ -19,6 +19,9 @@ func requestTestContext(t *testing.T) context.Context {
 func TestDispatcherDrainsIdleBurstAndCorrelates(t *testing.T) {
 	c, s := NewPipeGameConnPair(t)
 	d := c.StartDispatcher()
+	if _, err := c.ReadEnvelope(); !errors.Is(err, ErrReaderOwned) {
+		t.Fatal("raw reader not rejected")
+	}
 	if d != c.StartDispatcher() {
 		t.Fatal("multiple dispatchers")
 	}

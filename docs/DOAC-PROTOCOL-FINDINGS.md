@@ -1,0 +1,64 @@
+# DoAC protocol findings — 2026-10-11
+
+These findings are **static analysis of the official historical client**, not live server verification. The collectors also have automated synthetic tests. Keep those evidence levels separate.
+
+## Reproducible source
+
+Source: `https://lastwar-cdn.akamaized.net/hotupdate/com.fun.lastwar.gp/Android/LWScripts_826_u440.bz2`.
+
+- Archive SHA-256: `3ffe005adf44716bd9af020b71ea160e00d9a97bc1cb84cc0fa68cd2fb13c069`.
+- Uncompressed LWLF: 106,819,620 bytes, version 826, 18,740 modules.
+- Container: magic, three little-endian u32s (file version, Lua version, count); each entry is a .NET 7-bit-length string, little-endian u32 byte length, then Lua bytecode.
+- `tools/extract_lua.py` extracts selected modules, fixes format byte 1 to 0 and restores the omitted instruction-size byte, and writes a hash manifest. No account or VM access required.
+- Decompiler: `https://github.com/HansWessels/unluac`, revision `1b2bfed6045eb719a27f026311744d7a674847f5`. Standard fixed-header decompilation succeeded. This session compiled its Java sources using Eclipse ECJ 3.40.0 on Java 17 because only the Java runtime was installed. Ordinary JDK `build.sh` is sufficient elsewhere.
+
+```bash
+curl -fL -o /tmp/doac-lua.bz2 https://lastwar-cdn.akamaized.net/hotupdate/com.fun.lastwar.gp/Android/LWScripts_826_u440.bz2
+python3 tools/extract_lua.py /tmp/doac-lua.bz2 /tmp/doac-lua-fixed \
+  --match EnumType --match MsgDefines --match MsgMap --match Rank \
+  --match AllianceMemberInfo --match AllianceCompeteDataManager --match ZoneWarManager
+java -jar /path/to/unluac.jar /tmp/doac-lua-fixed/Global/EnumType.luac > /tmp/EnumType.lua
+```
+
+Do not commit the bundle, decompiled client sources or production captures. Relevant conclusions are recorded below instead.
+
+## THP and server rankings
+
+`Global/EnumType.luac`, `RankingTypeServer`: **HERO_TOTAL_POWER = 13**. POWER = 4; KILL = 3. THP is not city power.
+
+`Net/Msgs/GetRankListMessage.luac` uses `rank.get`, with Int `type`, `global`, `serverId`. It routes type 13 to `RankDataManager:ParsePlayerRankData`. `DataCenter/RankData/RankDataManager.luac` reads `serverRanking`; `PlayerRankData.luac` independently parses `heroPower`, `power`, `uid`, `name`, `serverId`/`srcServer`, `rank`, `score`. The THP collector requires `heroPower`, with no fallback to `power` or zero.
+
+No paging fields occur in this handler. The available ranking may be truncated; it does not guarantee THP for every alliance member. Compare roster UIDs against returned ranking UIDs during live validation. Do not invent missing THP values. `server.rank {ismerge:Int(0)}` routes to commander/city power, so it is not the THP query.
+
+## VS
+
+`Net/Msgs/Activity/AllianceCompeteRankListMessage.luac`: Long `type`, Int `day` for daily. `Global/EnumType.luac` has daily 0, weekly 1, season 2. `DataCenter/AllianceCompete/AllianceCompeteDataManager.luac`, `RefreshRankList`, reads `rankInfo`, response type and day. It walks the collection as a Lua table; parser supports SFS arrays and object maps. Known row fields: uid, aid, name, score. Daily/weekly records are filtered by explicit alliance ID. Season is retained as a ranking, not a roster.
+
+Day is 1..6. A host-local weekday is not sufficient to identify the game day. Config requires explicit game period labels. Contradictory echoed type/day is rejected.
+
+## Membership
+
+Upstream historical live evidence: `docs/live-validation.mdx`, 2026-10-06, documents `al.rank {allianceId:Utf}` and `list[]`. No new live test occurred here.
+
+`DataCenter/AllianceData/AllianceMemberInfo.luac`, `ParseData`: `userId` overrides `uid`; `playerName` overrides `name`. The collector implements those aliases. It preserves UID, name, alliance, player server and optional rank. It does not infer departures from empty or partial replies.
+
+**Authoritative/full-roster marking remains disabled** in the Go collector until a live sample establishes completeness, pagination and access semantics. SQLite membership transition logic is tested with explicitly authoritative synthetic snapshots; live roster observations can already be stored and compared manually.
+
+## Additional read-only rankings
+
+| Query | Request fields (SFS type) | Response evidence |
+|---|---|---|
+| `lw.season.rank.info` | `rank_type:Int`, `pageSize:Int` | `SeasonDataManager:UpdateSeasonRankDataCache` uses `rank`/`ranks`/`ls`; `LWSeasonRankItem` displays `score`. `SeasonRankType.PersonalPower=2`, `PersonalCrossServerPower=4`. Other types describe alliances/servers/camps, not player UIDs. |
+| `lw.season.alliance.devotes.rank.info` | `event_id:Utf`, `day:Int`, `start:Int`, `end:Int` | `LWSeasonAlliancedevotesRankInfoMessage`, `SeasonAllianceRankDataManager:UpdataRankData`: `ranks[]`, parsed as PlayerRankData. UI requests start=1,end=-1; event ID and subtype must be established from the active season. Collector requires row `score`. |
+| `cross.throne.person.score.rank` | none | `CrossKingPersonScoreRankMessage` passes to `ZoneWarManager:SetPersonScoreRank`, which reads `ranks`; handler synthetic sample uses uid/name/score/rank. Candidate SvS personal-score query; exact event coverage requires live validation. |
+| `meteorite.rank.person.info` | `grabTimes:Int`, `startRank:Int`, `count:Int` | `MeteoriteRankPersonInfoMessage` defaults start=1,count=100; `ActMeteoriteBattleManager` caches by grabTimes; `LWActMeteoriteRank:UpdateData` reads `data`; row UI uses uid/name/score/serverId. Round index is zero-based in the UI. |
+
+These query builders/parsers are implemented and tested with synthetic responses. Live payload shapes, active-event access, score meaning and limits remain unverified.
+
+## Unresolved rather than unavailable
+
+- `season.contribution.info` appears in MsgDefines and maps to `Net.Msgs.Glory.SeasonContributionInfoMessage`, but no module matching Contribution exists in the downloaded 826 archive. This may be stale dispatch metadata or a separately delivered handler. Do not guess parameters or call reward operations to discover it.
+- `lw.alliance.devotes.rank.all` has a no-parameter handler, but its manager stores the whole response without a clear individual-score shape. It is not parsed speculatively.
+- `lw.camp.battle.user.score.rank` has a no-parameter handler which broadcasts the reply. It needs an identified UI consumer or safe live sample before adding a parser.
+- Guest assignment to 1456 and historical returning-guest E011 are authentication/access observations, not proof any ranking command is unsupported. The current analytics CLI requires existing reconnect configuration and cannot auto-create guests.
+- No VM access was required to recover the THP constant. VM access is still needed to inspect the existing dashboard schema and use its already-authorised session environment for live validation; no deployment is implied.
