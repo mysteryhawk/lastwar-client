@@ -419,3 +419,14 @@ directory. With the user's approval, repeat fresh email verification once and in
 only aggregate outcome first. Do not reuse the failed directory for a supposedly fresh
 probe, do not retry E011 blindly, and do not issue THP unless role Login, matching UID,
 `init`, and observed source server 1723 all succeed.
+
+Preparation checkpoint: the corrected `2028c81` Linux ARM64 binary is staged only
+at `/tmp/doac-member-thp-2028c81` (SHA-256
+`064fa7eea47c156002760a884ef879ff07466747897cb4bf2b8263ce39a3b250`) with mode
+0700. `/tmp/doac-run-member-thp-rolefix` is the mode-0700 mobile wrapper. Its new
+private directory `/home/opc/doac-private/probe-rolefix-2028c81` and `account-state`
+subdirectory are both mode 0700, empty, and have no output file. The earlier failed
+state is preserved separately. No corrected process has run. Exact next action is for
+the user to execute `/tmp/doac-run-member-thp-rolefix` once from mobile SSH, enter the
+email/code privately, and report only the aggregate status line or authentication
+error; do not paste member rows or credentials into chat.
