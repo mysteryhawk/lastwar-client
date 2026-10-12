@@ -369,3 +369,18 @@ account. The user enters email and six-digit code privately; save the private
 normalised file outside Git and compare its 100 UID/name/THP rows with the in-game
 Canyon/Desert list. Treat alliance scope as manually unverified until that comparison;
 do not deploy, ingest the file, enable roster authority or alter game/database state.
+
+Checkpoint: guarded probe implementation and tests are committed and pushed as
+`8e286cd` on `feature/interactive-continuous-reader`; draft PR #1 now describes the
+current live/automated boundary. The exact committed source is the source that passed
+the final Linux ARM64 race/vet/build run. Dashboard state checkpoint `226eddd` is
+pushed separately. Both worktrees were clean after PR updates.
+
+Immediate next action is now the private live run, not further implementation: obtain
+explicit approval to execute the reviewed `8e286cd` build without installing it,
+create a fresh mode-0700 account-state directory and private FIFO/output directory,
+and let the user enter the account email and verification code in their terminal.
+Retain the resulting normalised file privately for their visual comparison. If the
+post-verification login fails, the observed server is not 1723, `init` is absent, or
+coverage is not exactly 100 valid rows, stop and preserve the explicit incomplete/
+failure evidence; do not fall back to a guest or another ranking.
