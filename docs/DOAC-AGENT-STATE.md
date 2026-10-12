@@ -384,3 +384,38 @@ Retain the resulting normalised file privately for their visual comparison. If t
 post-verification login fails, the observed server is not 1723, `init` is absent, or
 coverage is not exactly 100 valid rows, stop and preserve the explicit incomplete/
 failure evidence; do not fall back to a guest or another ranking.
+
+## Live checkpoint — verified role reconnect rejected before THP (2026-10-12)
+
+The user ran the reviewed one-shot wrapper from a private mobile SSH session. Email
+verification and `account.login.new` succeeded, and the new identity durably received
+a loginKey and the expected account role. GSL `opt=login` then returned code 0, one
+role on `lastLoggedServer=1723`, zone `APS1723`, and a non-empty access token. The
+subsequent SFS role Login was rejected with `ec=28`, `ep=[E011]`. The fail-closed
+guard worked: `dragon.assign.player.info` was not sent, no member output was created,
+and no game or database state was changed. This is live authentication evidence, not
+a THP endpoint result.
+
+Code reconciliation found that ordinary `Login` still sent the guest wire shape for
+this second connection: both envelope `un` and `p.gameUid` were blank even though GSL
+had selected the verified role. The established role-login implementation sends the
+selected UID in both fields; it also derives `SecurityCode` from that UID and omits
+five guest-registration fields. The branch now applies that role shape only to
+GSL `opt=login`, preserves blank identifiers for `opt=new` guests, fails closed if a
+loginKey resolves without a role UID, and returns exit code 2 for a game-server auth
+rejection in the member-probe path.
+
+Automated-only verification of the correction: focused `internal/auth` and
+`internal/app` tests, the complete sequential race suite, vet and the CLI build
+passed on Linux ARM64 in an isolated
+`/tmp` source copy. The VM system compiler was Go 1.26.7, so only that temporary
+copy's Go declaration was lowered; the repository's Go 1.27.2 declaration was not
+changed. A regression test covers role UID selection, UID-derived security code and
+absence of guest-only fields. No corrected binary has been executed against the game.
+
+Exact next action: commit and push the correction and both state checkpoints, build a
+reviewable corrected Linux ARM64 binary, then prepare a new empty mode-0700 state
+directory. With the user's approval, repeat fresh email verification once and inspect
+only aggregate outcome first. Do not reuse the failed directory for a supposedly fresh
+probe, do not retry E011 blindly, and do not issue THP unless role Login, matching UID,
+`init`, and observed source server 1723 all succeed.

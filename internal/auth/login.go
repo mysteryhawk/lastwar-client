@@ -81,6 +81,17 @@ func gslOptFor(ident *deviceIdentity) gsl.GSLOpt {
 	return gsl.ChooseOpt(gsl.OptState{LoginKey: ident.LoginKey, GameUid: ident.GameUid}, time.Now())
 }
 
+// baseZoneRoleUID returns the selected role UID only when GSL resolved a
+// freshly verified loginKey. Fresh guest bootstrap must continue to leave the
+// role blank, but an opt=login token is issued for the selected existing role
+// and its SFS Login must identify that role in both un and p.gameUid.
+func baseZoneRoleUID(opt gsl.GSLOpt, selectedGameUID string) string {
+	if opt.Opt == "login" {
+		return selectedGameUID
+	}
+	return ""
+}
+
 // buildBaseZoneLoginAddr builds the "host:port" dial address for the base zone SFS2X connection
 // from a GSL server list entry (or a serverInfo redirect payload -- same "ip"/"port" shape),
 // guarding against an empty ip: Go's "host:port" dial syntax treats an empty host as the loopback
@@ -330,6 +341,10 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	resVersion := ResVersionFor(httpClient, cv, false, "", "", "")
 	zone := capOversizedIdentityField("zone", stateSrv.Zone.String(), "", "login initial GSL response")
 	gameUid := capOversizedIdentityField("gameUid", stateSrv.GameUid.String(), "", "login initial GSL response")
+	roleGameUID := baseZoneRoleUID(opt, gameUid)
+	if opt.Opt == "login" && roleGameUID == "" {
+		return nil, errors.New("login: GSL resolved loginKey without a role gameUid")
+	}
 	if gameUid != "" && gameUid != ident.GameUid {
 		if err := ident.SaveGameUid(gameUid); err != nil {
 			slog.Warn("failed to persist gameUid", "error", err)
@@ -402,26 +417,16 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		}
 
 		slog.Info("step 4: SFS zone login")
-		// NOTE: per LoginMessage.CSSetData (Assembly-CSharp.decompiled.cs:
-		// 122420+), `un` should be AccountCredentialManager.ServerInfo.uid
-		// -- GSL's composite `gameUid` -- once known. Empirically that's
-		// backwards for the base zone Login on THIS server: sending a
-		// non-empty `un`/`p.gameUid` reliably gets ec=28/E005 (or E011),
-		// reproducibly, even for a low-value guest identity that has
-		// simply connected once before -- not just for an established
-		// real account. `un=""` (letting the server resolve identity from
-		// deviceId/airKey alone) is the only combination that has ever
-		// worked, in every test run tonight. Best guess:
-		// AccountCredentialManager.SetUID is only actually called from the
-		// role-picker flow (UIRoleLoginView.OnClickLogin) in real play,
-		// not populated automatically from a plain GSL response the way
-		// this dossier's static reading assumed -- so ServerInfo.uid is
-		// genuinely empty at this call site in normal operation too.
+		// A brand-new guest has no selected role and deliberately sends blank
+		// un/p.gameUid. GSL opt=login is different: it exchanges the loginKey
+		// created by account.login.new for a token scoped to an existing role,
+		// so the subsequent SFS Login must carry the GSL-selected role UID.
+		// DoCrossServerLogin implements the same UIRoleLoginView wire shape.
 		loginParams := BuildLoginParams(LoginParamsInput{
 			FutureID:   1,
 			DeviceID:   ident.DeviceID,
 			AirKey:     ident.AirKey(),
-			GameUid:    "",
+			GameUid:    roleGameUID,
 			AccessTok:  accessTok,
 			ServerID:   serverID,
 			ResVersion: resVersion,
@@ -429,7 +434,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		loginPF = loginParams.GetString("pf")
 		loginContent := sfs.NewSFSObject()
 		loginContent.PutUtfString("zn", zone)
-		loginContent.PutUtfString("un", "")
+		loginContent.PutUtfString("un", roleGameUID)
 		loginContent.PutUtfString("pw", "")
 		loginContent.PutSFSObject("p", loginParams)
 		if err := conn.SendEnvelope(session.ControllerSystem, session.ActionLogin, loginContent); err != nil {

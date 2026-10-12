@@ -461,6 +461,9 @@ func Run() {
 		if err != nil {
 			slog.Error("verified account could not reconnect into its game role; no THP request was sent", "error", err)
 			exitIfReauthNeeded(err)
+			if errors.Is(err, session.ErrAuthRejected) {
+				os.Exit(2)
+			}
 			os.Exit(1)
 		}
 		conn = result.Conn
