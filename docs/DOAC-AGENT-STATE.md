@@ -430,3 +430,21 @@ state is preserved separately. No corrected process has run. Exact next action i
 the user to execute `/tmp/doac-run-member-thp-rolefix` once from mobile SSH, enter the
 email/code privately, and report only the aggregate status line or authentication
 error; do not paste member rows or credentials into chat.
+
+## VM toolchain baseline — permanent Go 1.27.2 (2026-10-12)
+
+The Oracle Linux ARM64 VM now has the project's exact Go toolchain installed
+permanently for `opc` at `/home/opc/.local/lib/go1.27.2`. Owner-controlled symlinks
+`~/.local/bin/go` and `~/.local/bin/gofmt` take precedence over Oracle's retained
+`/usr/bin/go` 1.26.7 through the existing shell PATH; no system package or profile was
+replaced. The official `go1.27.2.linux-arm64.tar.gz` download was verified against
+Go's published SHA-256
+`94f3e30b8e374bc285e7dadc11e0865726b9bc6e85b841ccceaabc0214c6b7c8`
+before installation, and its temporary download directory was removed.
+
+A fresh login shell resolves both tools under `~/.local/bin` and reports
+`go version go1.27.2 linux/arm64`; `GOROOT` is the versioned permanent directory and
+`GOTOOLCHAIN=auto`. Against the unchanged Go 1.27.2 project declaration, focused
+auth/app tests, vet and the client build pass. Future VM verification should use plain
+`go` from the `opc` login environment; do not create temporary toolchains or lower
+`go.mod` unless this installation is independently found damaged.
