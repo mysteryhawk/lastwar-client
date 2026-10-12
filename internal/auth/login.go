@@ -23,12 +23,28 @@ import (
 // the live connection and the account snapshot from push.account.login.new
 // (when the email-code path ran) or the base login response otherwise.
 type LoginResult struct {
-	Conn      *session.GameConn
-	Ident     *deviceIdentity
-	Account   *sfs.SFSObject  // push.account.login.new params, if the email path ran (nil on loginKey fast-path)
-	Buildings []game.Building // populated if the `init` bootstrap push arrived during login (see waitForInitPush)
-	Visitors  []game.Visitor  // populated alongside Buildings, from the same `init` push (see waitForInitPush)
-	GotInit   bool            // the `init` push arrived during login
+	Conn  *session.GameConn
+	Ident *deviceIdentity
+	// SourceServer is the final game server selected by GSL or a validated
+	// serverInfo redirect. It describes this socket's role context; callers
+	// must not substitute a requested/target server for it.
+	SourceServer      int32
+	roleGameUID       string          // final GSL/redirect-selected role; sensitive, never expose raw
+	UsedLoginKey      bool            // this socket was resolved through the persisted loginKey
+	EmailVerified     bool            // account.login.new and its account push both succeeded
+	LoginKeyPersisted bool            // verified loginKey was durably saved for the next login
+	GameUIDPersisted  bool            // verified gameUid was durably saved for the next login
+	Account           *sfs.SFSObject  // push.account.login.new params, if the email path ran (nil on loginKey fast-path)
+	Buildings         []game.Building // populated if the `init` bootstrap push arrived during login (see waitForInitPush)
+	Visitors          []game.Visitor  // populated alongside Buildings, from the same `init` push (see waitForInitPush)
+	GotInit           bool            // the `init` push arrived during login
+}
+
+// MatchesRoleGameUID lets a guarded caller prove that a subsequent login
+// selected the role named by an earlier verified account push without exposing
+// the stable role identifier through LoginResult's public surface.
+func (r *LoginResult) MatchesRoleGameUID(expected string) bool {
+	return r != nil && expected != "" && r.roleGameUID != "" && r.roleGameUID == expected
 }
 
 // LoginOptions configures how Login authenticates.
@@ -529,7 +545,14 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		slog.Warn("giving up on init after all attempts; continuing anyway, building list may be empty")
 	}
 
-	result := &LoginResult{Conn: conn, Ident: ident, Buildings: buildings, Visitors: visitors, GotInit: gotInit}
+	var sourceServer int32
+	if parsed, parseErr := strconv.ParseInt(serverID, 10, 32); parseErr == nil && parsed > 0 {
+		sourceServer = int32(parsed)
+	}
+	result := &LoginResult{
+		Conn: conn, Ident: ident, SourceServer: sourceServer, roleGameUID: gameUid,
+		UsedLoginKey: opt.Opt == "login", Buildings: buildings, Visitors: visitors, GotInit: gotInit,
+	}
 
 	if opt.Opt == "login" {
 		// GSL already resolved the real account via loginKey; the base
@@ -630,6 +653,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	// accountArr) in cleartext, and String() does no field-level redaction.
 	slog.Info("login success", "gameUid", sfs.Redact(msg2.Params.GetString("gameUid")), "loginKey", sfs.Redact(msg2.Params.GetString("loginKey")))
 	result.Account = msg2.Params
+	result.EmailVerified = true
 
 	// session.WarnIfWrongTypedField below adds a diagnostic for the "field present but wrong-typed"
 	// case specifically -- distinct from genuinely absent, which the GetString-then-compare-to-""
@@ -641,6 +665,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		if err := ident.SaveLoginKey(lk); err != nil {
 			slog.Warn("failed to persist loginKey", "error", err)
 		} else {
+			result.LoginKeyPersisted = true
 			slog.Info("persisted loginKey for future fast logins")
 		}
 	}
@@ -648,6 +673,8 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	if gu := msg2.Params.GetString("gameUid"); gu != "" {
 		if err := ident.SaveGameUid(gu); err != nil {
 			slog.Warn("failed to persist gameUid", "error", err)
+		} else {
+			result.GameUIDPersisted = true
 		}
 	}
 	session.WarnIfWrongTypedField(msg2.Params, "gameUserName", "push.account.login.new", session.SFSFieldKindString)

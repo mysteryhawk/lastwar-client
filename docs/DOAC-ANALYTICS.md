@@ -6,6 +6,16 @@ Status: automated fake-server/fixture verification; **not live-tested in this se
 
 Build with the Go version in `go.mod`. Use an existing private reconnect session configuration, kept outside the repository. Analytics refuses `-collect`, `-run-feature`, `-interactive` and account-binding `-email`. It does not auto-create guests. Existing non-analytics commands are preserved.
 
+The separate `-member-thp-output` validation path is intentionally narrower than
+general analytics. It supports private email verification followed by a fresh
+loginKey-based role connection, requires the observed role to be server 1723 and
+to have delivered `init`, and sends only `dragon.assign.player.info {}`. It
+exclusively creates a mode-0600 JSON document outside the repository containing
+only `uid`, `display_name` and `thp` records plus minimal provenance. Existing
+files and symlinks are refused. Exactly 100 unique rows with non-empty identities
+and valid THP are required for success; incomplete normalized replies remain
+available for manual comparison and are never treated as complete membership.
+
 Copy `analytics.example.json` to a private location. Set the confirmed alliance ID and explicit game-day/week/season labels. Do not guess the alliance ID or use the computer's weekday as the game day. Output is append-only JSONL with mode 0600.
 
 ```bash

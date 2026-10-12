@@ -75,6 +75,7 @@ func Run() {
 	collect := fs.Bool("collect", false, "collect resources from every confirmed building type, plus the Armed Truck/Overlord idle rewards, greeting city visitors, helping alliance members, claiming all mail and alliance gifts, donating to the recommended alliance tech, and both once-a-day VIP claims, after login")
 	listBuildings := fs.Bool("list-buildings", false, "print every owned building's details (a summary line, a per-type line, and a per-instance line with uuid/level/pointId and a full raw redacted dump -- not just id/type/level) to stdout. NOTE: this print already happens by DEFAULT whenever -collect is NOT passed -- this flag only matters when -collect IS also passed, where it forces the same print to happen alongside collection instead of being skipped; the process still exits after -collect/-list-buildings finish (assuming -collect, if passed, didn't fail fatally first) unless -interactive is also set")
 	analyticsPath := fs.String("analytics", "", "read-only analytics config: export UID-keyed JSONL and exit; incompatible with -collect, -run-feature, -email and -interactive")
+	memberTHPOutput := fs.String("member-thp-output", "", "one-shot read-only server-1723 own-alliance THP probe; exclusively creates a private JSON file and may be combined with -email for first-time verification")
 	interactive := fs.String("interactive", "", "stay connected and read ad-hoc test commands from this control FIFO instead of exiting; only flat scalar param values (strings/bools/numbers) are supported -- nested JSON objects/arrays are rejected with a logged error and abort the whole send (see interactive.go)")
 
 	csIP := fs.String("cs-ip", "", "skip normal login; reconnect directly to this ip (pipe-delimited ok) using an already-known role (from accountArr/push.account.login.new). Optional when an access token is given (-cs-at or a session config): without -cs-ip/-cs-port or a session config ip/port, GSL getserverlist looks the role's game server up, and it does so again if the given address doesn't answer")
@@ -171,6 +172,17 @@ func Run() {
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(*logLevel)})))
+
+	if *memberTHPOutput != "" {
+		if *collect || *listBuildings || *runFeature != "" || *interactive != "" || *analyticsPath != "" || *ownDeviceSession != "" {
+			slog.Error("-member-thp-output cannot be combined with gameplay, building-output, interactive, general analytics or own-device-session flags")
+			os.Exit(1)
+		}
+		if *email == "" {
+			slog.Error("-member-thp-output requires a fresh -email verification in an isolated empty LASTWAR_STATE_DIR")
+			os.Exit(1)
+		}
+	}
 
 	if *ownDeviceSession != "" {
 		if err := writeOwnDeviceSession(gsl.DefaultHTTPClient(), *ownDeviceSession); err != nil {
@@ -383,6 +395,10 @@ func Run() {
 		slog.Error("-analytics requires an existing authenticated reconnect configuration; guest account creation is disabled in analytics mode")
 		os.Exit(1)
 	}
+	if *memberTHPOutput != "" && crossServer {
+		slog.Error("-member-thp-output uses the verified email/loginKey role flow, not a reconnect session; pass -no-config and omit -cs-* flags")
+		os.Exit(1)
+	}
 
 	if crossServer {
 		if *email != "" {
@@ -424,6 +440,47 @@ func Run() {
 	}
 	conn := result.Conn
 	defer func() { _ = conn.Close() }()
+
+	if *memberTHPOutput != "" {
+		// Email verification binds the account but the socket that performed it was
+		// bootstrapped in the preceding guest role. Reconnect through the newly
+		// persisted loginKey before using an implicitly own-alliance endpoint.
+		if !result.EmailVerified || !result.LoginKeyPersisted || !result.GameUIDPersisted || result.Account == nil {
+			slog.Error("fresh email verification did not produce durable loginKey and gameUid state; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		verifiedGameUID := result.Account.GetString("gameUid")
+		if verifiedGameUID == "" {
+			slog.Error("verified account response had no role gameUid; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		_ = conn.Close()
+		result, err = auth.Login(auth.LoginOptions{Handshake: *handshake})
+		if err != nil {
+			slog.Error("verified account could not reconnect into its game role; no THP request was sent", "error", err)
+			exitIfReauthNeeded(err)
+			os.Exit(1)
+		}
+		conn = result.Conn
+		if !result.UsedLoginKey || !result.MatchesRoleGameUID(verifiedGameUID) {
+			slog.Error("post-verification login did not resolve the same persisted role; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		if !result.GotInit {
+			slog.Error("authenticated role did not produce an init snapshot; refusing implicit-alliance THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		if err := runPrivateTHPProbe(conn, result.SourceServer, *memberTHPOutput); err != nil {
+			slog.Error("private member THP probe failed", "error", err)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
+	}
 
 	buildings := result.Buildings
 	visitors := result.Visitors
@@ -703,7 +760,7 @@ func warnIfInteractiveExplicitlyEmpty(explicit bool, interactive string) {
 // detectSwallowedFlagValue) so it reads as a deliberate, reviewable scoping decision, matching this
 // file's existing crossServerFlagNames convention just below.
 var stringFlagSwallowGuardNames = map[string]bool{
-	"email": true, "code-pipe": true, "interactive": true, "analytics": true,
+	"email": true, "code-pipe": true, "interactive": true, "analytics": true, "member-thp-output": true,
 	"cs-ip": true, "cs-zone": true, "cs-gameuid": true, "cs-deviceid": true,
 	"cs-shumei": true, "cs-rt": true, "cs-at": true,
 	"config": true, "decode-stream": true, "decode-label": true, "log-level": true,

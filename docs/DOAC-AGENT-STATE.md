@@ -326,3 +326,46 @@ guest contexts, not an authorised DoAC/server-1723 member session. Reusing or cr
 guest cannot validate this implicit own-alliance endpoint. Exact next action is therefore
 to provide/use an authorised DoAC member session privately, then compare same-session
 `al.rank` and `desert_thp` UID sets and record aggregate counts only.
+
+## Milestone — guarded private member-THP probe (2026-10-12)
+
+The client now has a narrowly scoped `-member-thp-output` flow for the user's
+authorised DoAC account. It requires a fresh email verification in an isolated
+state directory, confirms that loginKey and gameUid were durably persisted, closes
+the initial guest-context socket, and reconnects. The second connection must have
+used that loginKey, resolve the same verified gameUid, receive `init`, and observe
+source server 1723 before any analytics request is sent. This prevents a fresh or
+wrong-server guest from being mistaken for an authenticated DoAC role.
+
+The probe sends exactly one read-only `dragon.assign.player.info {}` request. It
+exclusively creates a mode-0600 JSON file in an absolute private path whose parent
+is not group/world-accessible on POSIX. Existing files and symlinks are refused.
+The document contains only collection time, observed server, command, response and
+coverage status, a manual-scope-validation marker, and records containing stable
+UID, display name and THP. Success requires exactly 100 unique non-empty UIDs and
+names with non-negative `heroPower`; city/army power cannot substitute. Incomplete
+normalised replies are retained with `status: incomplete`, never relabelled as
+complete or zero-filled. Raw protocol responses and credentials are not exported.
+
+Automated verification of the exact working source on Linux ARM64 with checksum-
+verified Go 1.27.2: `go test -p 1 ./... -race`, `go vet ./...` and
+`go build ./cmd/lastwar-client` passed. The first full race run exposed two unrelated
+timing-sensitive interactive tests; both then passed three consecutive focused race
+runs and the subsequent complete race suite. Local Windows production build,
+Linux/ARM test-binary compilation and vet also passed; native Windows execution of
+the existing FIFO tests remains unsupported. Temporary VM source/toolchain archives
+were removed. No binary was deployed, no email verification occurred and no game
+request was sent.
+
+Static Canyon evidence remains incomplete. The known `dsb.act.player.list {}` row
+parser lacks `heroPower`, despite the user's live observation that the Canyon
+participant selector displays THP to an ordinary member. The exact Canyon cache or
+secondary request sequence still needs capture/static tracing; do not substitute
+`power` or `armyPower`.
+
+Exact next action: commit and push this guarded probe, then—only with approval to
+execute the reviewed build—run it interactively with the user's secondary DoAC
+account. The user enters email and six-digit code privately; save the private
+normalised file outside Git and compare its 100 UID/name/THP rows with the in-game
+Canyon/Desert list. Treat alliance scope as manually unverified until that comparison;
+do not deploy, ingest the file, enable roster authority or alter game/database state.
