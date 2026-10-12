@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/netip"
 	"os"
 	"slices"
@@ -157,15 +157,21 @@ func acceptedLogin(c2s, s2c []byte) (*app.SessionConfig, string) {
 	}
 
 	params := sfsObject(req, "p")
+	encodedParams, err := sfs.EncodeObject(params)
+	if err != nil {
+		return nil, "accepted Login parameters could not be encoded"
+	}
 	cfg := &app.SessionConfig{
-		Zone:        req.GetString("zn"),
-		GameUid:     params.GetString("gameUid"),
-		DeviceID:    params.GetString("deviceId"),
-		ShumeiBoxId: params.GetString("shumeiBoxId"),
-		AccessToken: params.GetString("at"),
-		IOSMode:     params.GetString("platform") == "0",
-		AppVersion:  params.GetString("appVersion"),
-		VersionCode: params.GetString("versionCode"),
+		Zone:              req.GetString("zn"),
+		GameUid:           params.GetString("gameUid"),
+		DeviceID:          params.GetString("deviceId"),
+		ShumeiBoxId:       params.GetString("shumeiBoxId"),
+		AccessToken:       params.GetString("at"),
+		IOSMode:           params.GetString("platform") == "0",
+		AppVersion:        params.GetString("appVersion"),
+		VersionCode:       params.GetString("versionCode"),
+		ResVersion:        params.GetString("resVersion"),
+		LoginParamsBase64: base64.StdEncoding.EncodeToString(encodedParams),
 	}
 	if cfg.GameUid == "" {
 		cfg.GameUid = req.GetString("un")
@@ -208,23 +214,70 @@ func sfsObject(obj *sfs.SFSObject, key string) *sfs.SFSObject {
 	return o
 }
 
-// decodeAll frames and decodes every packet in one reassembled direction, stopping quietly at the
-// first framing error (a capture that starts or ends mid-packet).
+// decodeAll frames and decodes every packet in one reassembled direction. Packet captures can
+// contain a hole (pktmon records later TCP segments even when an earlier segment was missed), so
+// after the first framing error it scans forward for the next complete, decodable SFS frame rather
+// than discarding the rest of the connection. A candidate must fit wholly inside the remaining
+// capture before ReadPacket is called; this prevents a random byte sequence in a damaged frame
+// from causing a large speculative allocation.
 func decodeAll(data []byte) []*sfs.SFSObject {
-	r := bytes.NewReader(data)
 	var out []*sfs.SFSObject
-	for {
+	for offset := 0; offset < len(data); {
+		frameLen, plausible := capturedFrameLen(data[offset:])
+		if !plausible {
+			offset++
+			continue
+		}
+		r := bytes.NewReader(data[offset : offset+frameLen])
 		body, err := sfs.ReadPacket(r)
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				fmt.Fprintf(os.Stderr, "pcap: stopped decoding at offset %d: %v\n", len(data)-r.Len(), err)
-			}
-			return out
+			offset++
+			continue
 		}
-		if obj, err := sfs.DecodeObject(body); err == nil {
-			out = append(out, obj)
+		obj, err := sfs.DecodeObject(body)
+		if err != nil {
+			offset++
+			continue
 		}
+		out = append(out, obj)
+		offset += frameLen
 	}
+	return out
+}
+
+// capturedFrameLen returns the complete on-wire frame length only when the bytes begin with a
+// binary SFS header and the declared body fits inside data. The optional four-byte Zstandard
+// uncompressed length is part of the frame header, not the declared body length.
+func capturedFrameLen(data []byte) (int, bool) {
+	if len(data) < 3 || data[0]&sfs.HdrBinary == 0 {
+		return 0, false
+	}
+	lengthOffset := 1
+	if data[0]&0x04 != 0 { // forwarded frame: two-byte session id precedes the length
+		lengthOffset += 2
+	}
+	lengthBytes := 2
+	if data[0]&sfs.HdrBigSized != 0 {
+		lengthBytes = 4
+	}
+	if len(data) < lengthOffset+lengthBytes {
+		return 0, false
+	}
+	headerLen := lengthOffset + lengthBytes
+	var bodyLen uint64
+	if data[0]&sfs.HdrBigSized != 0 {
+		bodyLen = uint64(data[lengthOffset])<<24 | uint64(data[lengthOffset+1])<<16 |
+			uint64(data[lengthOffset+2])<<8 | uint64(data[lengthOffset+3])
+	} else {
+		bodyLen = uint64(data[lengthOffset])<<8 | uint64(data[lengthOffset+1])
+	}
+	if data[0]&sfs.HdrCompressed != 0 && data[0]&0x10 != 0 {
+		headerLen += 4
+	}
+	if bodyLen > sfs.MaxFrameSize || uint64(headerLen)+bodyLen > uint64(len(data)) {
+		return 0, false
+	}
+	return headerLen + int(bodyLen), true
 }
 
 // writeSessionConfig writes cfg as indented JSON with 0600 permissions, tightening an existing

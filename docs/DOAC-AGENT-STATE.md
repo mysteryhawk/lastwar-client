@@ -511,3 +511,48 @@ Compare that safe manifest with the failed Go Login manifest before changing any
 field. If mobile capture is not operationally available, the blocker requires user
 choice of a capture route; do not spend further email codes or guess fingerprint data.
 Only after role Login succeeds should the guarded, single read-only THP request resume.
+
+## Live milestone — official Login replay and 100-member THP (2026-10-13)
+
+A Windows Google Play Games cold start was captured privately with built-in `pktmon`
+while the user completed the official email-code login. The capture stayed outside Git.
+The gap-tolerant offline decoder recovered one APS1723 Login request and its response;
+the response was decoded as accepted and the user independently observed a successful
+login. The credential-free manifest showed Android package/platform/storefront, a
+40-character suffixed device ID with a derived 62-character air key, build
+`1.0.361`/`151403`, resource version `104.88_124F_39581.23576`, non-empty ShuMei and
+data-config values, and the full official Android telemetry/device field shape. No
+identifier, token or raw capture is committed.
+
+Two staged replays isolated the authentication requirement. Preserving only the build
+and resource version still returned `ec=28/E005`. Preserving the complete encoded
+parameter object from the server-accepted Login, while overriding only explicit
+role/token/build fields, produced `login OK`, a complete bootstrap and observed source
+server 1723. Captured templates deliberately refuse server redirects because opaque
+UID/zone-bound fields cannot safely be rewritten; the operator must recapture instead.
+`dataConfigMd5` and the encoded template are treated as private alongside the token.
+
+The guarded reconnect then sent exactly one read-only
+`dragon.assign.player.info {}` request. Live result: response status `ok`, exactly 100
+unique records containing UID, display name and THP, zero rejected rows, source server
+1723, and probe status `complete`. The normalised JSON is private on the user's laptop
+outside the repositories and has not been ingested, printed or committed. Endpoint and
+server coverage are live-verified; alliance scope still requires the user's manual
+in-game comparison. `complete_roster` remains disabled and missing observations must
+remain unknown.
+
+Implementation changes in this milestone: `pcap` now resynchronises after capture gaps;
+`-session-out` preserves accepted `resVersion` and the private encoded Login template;
+`-member-thp-output` accepts either its original verified email/loginKey route or a
+server-accepted reconnect session; bootstrap logging no longer prints unrelated private
+push payloads; and the Windows capture helper checks every `pktmon` exit code. Automated
+verification includes focused portable tests and Windows builds. On the VM's permanent
+Go 1.27.2 Linux/ARM64 toolchain, `go test -race ./internal/app` passed, followed by
+`go test -p 1 ./...`, `go vet ./...` and builds of both `cmd/lastwar-client` and
+`cmd/pcap`. The full suite caught and resolved one stale test allowlist entry after
+`dataConfigMd5` became sensitive; the complete rerun exited successfully.
+
+Exact next action after this checkpoint is for the user to compare the private 100 rows
+with the Canyon/Desert participant list. After manual scope confirmation, collect a
+same-session `al.rank` roster and compare UID sets before enabling ingestion or any
+roster-completeness claim.

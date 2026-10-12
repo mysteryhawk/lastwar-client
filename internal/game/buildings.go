@@ -691,31 +691,24 @@ func fetchInit(conn *session.GameConn, timeout time.Duration, raw **sfs.SFSObjec
 				}
 			}
 		case "push.queue.add":
-			// maxNonMatchingEnvelopesPerWait (login.go doc comment): checked BEFORE the
-			// StringRedacted() formatting/Info-log below so a peer flooding this loop with
-			// irrelevant push.queue.add traffic can't force unbounded formatting cost on the
-			// very iteration that finally gives up.
+			// maxNonMatchingEnvelopesPerWait (login.go doc comment): checked before logging so
+			// irrelevant pushes cannot force unbounded work on the iteration that gives up.
 			if err := checkNonMatchingEnvelopeCap(&nonMatchingEnvelopes); err != nil {
 				return buildings, visitors, err
 			}
-			// StringRedacted, not String(): this switch's default branch (and, in principle, any
-			// case here) sees whatever cmd the server sends while FetchBuildings is listening, and
-			// nothing in this function's control flow enforces that a credential-bearing push (e.g.
-			// push.account.login.new, or an init push's chatToken) can't land here. No currently
-			// reachable path does so today, but that rests on call-ordering elsewhere in the
-			// client, not on anything this switch itself checks -- sfs.Redact defensively rather than
-			// rely on it.
-			slog.Info("observed push.queue.add", "params", msg.Params.StringRedacted())
+			slog.Debug("observed push while waiting for init", "cmd", msg.Cmd)
 		case "push.build.queue.info":
 			if err := checkNonMatchingEnvelopeCap(&nonMatchingEnvelopes); err != nil {
 				return buildings, visitors, err
 			}
-			slog.Info("observed push.build.queue.info", "params", msg.Params.StringRedacted())
+			slog.Debug("observed push while waiting for init", "cmd", msg.Cmd)
 		default:
 			if err := checkNonMatchingEnvelopeCap(&nonMatchingEnvelopes); err != nil {
 				return buildings, visitors, err
 			}
-			slog.Info("observed other push", "cmd", msg.Cmd, "params", msg.Params.StringRedacted())
+			// Unknown bootstrap pushes can contain formation/member/account details that are not
+			// credentials but are still private. Command names are sufficient diagnostics here.
+			slog.Debug("observed push while waiting for init", "cmd", msg.Cmd)
 		}
 	}
 

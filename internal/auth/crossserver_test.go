@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"lastwar-client/internal/session"
@@ -16,6 +17,45 @@ import (
 	"testing"
 	"time"
 )
+
+func TestCrossServerLoginParamsPreservesCapturedOpaqueFields(t *testing.T) {
+	template := sfs.NewSFSObject()
+	template.PutUtfString("dataConfigMd5", "private-opaque-template-value")
+	template.PutUtfString("AndroidID", "private-device-value")
+	template.PutUtfString("gameUid", "old-uid")
+	template.PutUtfString("at", "old-token")
+	encoded, err := sfs.EncodeObject(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := CrossServerLoginParams{
+		GameUid: "new-uid", DeviceID: "new-device", AirKey: "new-air", AccessTok: "new-token",
+		ShumeiBoxId: "new-shumei", AppVersion: "1.0.361", VersionCode: "151403",
+		ResVersion: "104.88_124F_39581.23576", LoginParamsBase64: base64.StdEncoding.EncodeToString(encoded),
+	}
+	got, err := crossServerLoginParams(p, "APS1723")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GetString("dataConfigMd5") != "private-opaque-template-value" || got.GetString("AndroidID") != "private-device-value" {
+		t.Fatal("captured opaque fields were not preserved")
+	}
+	for key, want := range map[string]string{
+		"gameUid": "new-uid", "at": "new-token", "deviceId": "new-device", "airKey": "new-air",
+		"shumeiBoxId": "new-shumei", "serverId": "1723", "appVersion": "1.0.361",
+		"versionCode": "151403", "resVersion": "104.88_124F_39581.23576",
+	} {
+		if value := got.GetString(key); value != want {
+			t.Errorf("%s = %q, want %q", key, value, want)
+		}
+	}
+}
+
+func TestCrossServerLoginParamsRejectsMalformedTemplate(t *testing.T) {
+	if _, err := crossServerLoginParams(CrossServerLoginParams{LoginParamsBase64: "not-base64"}, "APS1723"); err == nil {
+		t.Fatal("malformed captured template accepted")
+	}
+}
 
 // DoCrossServerLogin dials its own connection (via DialGame, a plain net.DialTimeout -- see
 // conn.go) rather than accepting a pre-built GameConn, so it can't be exercised over net.Pipe the

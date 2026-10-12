@@ -56,8 +56,9 @@ type loginShapeReport struct {
 }
 
 type shapeField struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	Empty *bool  `json:"empty,omitempty"`
 }
 
 func runLoginShape(in string, stream int, clientStr string, out io.Writer) error {
@@ -214,11 +215,11 @@ func shapeFromRequest(stream int, req, params *sfs.SFSObject) *loginShapeReport 
 	}
 	for _, key := range req.Keys() {
 		value, _ := req.Get(key)
-		r.LoginFields = append(r.LoginFields, shapeField{Name: key, Type: sfsTypeName(value.Type)})
+		r.LoginFields = append(r.LoginFields, describeShapeField(key, value))
 	}
 	for _, key := range params.Keys() {
 		value, _ := params.Get(key)
-		r.Fields = append(r.Fields, shapeField{Name: key, Type: sfsTypeName(value.Type)})
+		r.Fields = append(r.Fields, describeShapeField(key, value))
 	}
 	if raw := params.GetString("ta"); raw != "" {
 		var obj map[string]json.RawMessage
@@ -240,6 +241,17 @@ func shapeFromRequest(stream int, req, params *sfs.SFSObject) *loginShapeReport 
 		}
 	}
 	return r
+}
+
+func describeShapeField(name string, value sfs.SFSValue) shapeField {
+	f := shapeField{Name: name, Type: sfsTypeName(value.Type)}
+	if value.Type == sfs.SFSUtfString || value.Type == sfs.SFSText {
+		if s, ok := value.Val.(string); ok {
+			empty := s == ""
+			f.Empty = &empty
+		}
+	}
+	return f
 }
 
 func stringField(obj *sfs.SFSObject, key string) (string, bool) {

@@ -199,7 +199,11 @@ echo 123456 > /tmp/lw_code_pipe
 ```
 
 For the narrowly scoped DoAC member-THP validation, `-member-thp-output` may be
-combined with the email flow. It closes the guest-context socket after successful
+used with a private `-config` produced from a server-accepted official Login capture,
+or combined with the email flow. A captured session preserves the accepted build,
+resource version and opaque Login parameter template; the template is credential-grade
+private data and must never enter Git. With email, the probe closes the guest-context
+socket after successful
 verification, reconnects through the newly persisted account identity, requires an
 observed server-1723 role and a received `init`, then sends exactly one read-only
 `dragon.assign.player.info {}` request. The output path must be a new file in a

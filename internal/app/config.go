@@ -30,10 +30,16 @@ type SessionConfig struct {
 	ShumeiBoxId string `json:"shumeiBoxId"`
 	AccessToken string `json:"accessToken"`
 	IOSMode     bool   `json:"iosMode"`
-	// AppVersion/VersionCode are the build the captured accessToken was issued under (the token is
-	// bound to it); empty means the built-in defaults. cmd/pcap -session-out fills both in.
+	// AppVersion/VersionCode/ResVersion are the build and hot-update state the captured accessToken
+	// was accepted with; empty means the built-in/derived defaults. cmd/pcap -session-out fills all
+	// three in so a replay never mixes a captured build with another build's resource manifest.
 	AppVersion  string `json:"appVersion,omitempty"`
 	VersionCode string `json:"versionCode,omitempty"`
+	ResVersion  string `json:"resVersion,omitempty"`
+	// LoginParamsBase64 is the encoded parameter object from the server-accepted Login. It remains
+	// private alongside AccessToken and preserves opaque device/Google/fingerprint fields that a
+	// synthetic client cannot derive. Reconnect replaces the explicit role/token/build fields.
+	LoginParamsBase64 string `json:"loginParamsBase64,omitempty"`
 	// RefreshToken (with GSL's at.time/rt.time, unix seconds of issue) is only present for the
 	// client's own device (-own-device-session, experimental). Nothing consumes it yet: the real
 	// client's own E011 recovery is GSL opt=refresh with it, but the own-device Login itself is

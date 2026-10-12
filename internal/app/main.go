@@ -178,10 +178,6 @@ func Run() {
 			slog.Error("-member-thp-output cannot be combined with gameplay, building-output, interactive, general analytics or own-device-session flags")
 			os.Exit(1)
 		}
-		if *email == "" {
-			slog.Error("-member-thp-output requires a fresh -email verification in an isolated empty LASTWAR_STATE_DIR")
-			os.Exit(1)
-		}
 	}
 
 	if *ownDeviceSession != "" {
@@ -315,11 +311,11 @@ func Run() {
 	if !*noConfig {
 		cfg, cfgSource = loadEffectiveConfig(*configPath)
 	}
-	var cfgAppVersion, cfgVersionCode string
+	var cfgAppVersion, cfgVersionCode, cfgResVersion, cfgLoginParamsBase64 string
 	var cfgFeatures map[string]bool
 	var cfgDuelPolicy map[string]string
 	if cfg != nil {
-		cfgAppVersion, cfgVersionCode, cfgFeatures = cfg.AppVersion, cfg.VersionCode, cfg.Features
+		cfgAppVersion, cfgVersionCode, cfgResVersion, cfgLoginParamsBase64, cfgFeatures = cfg.AppVersion, cfg.VersionCode, cfg.ResVersion, cfg.LoginParamsBase64, cfg.Features
 		cfgDuelPolicy = cfg.DuelPolicy
 		slog.Info("loaded session config", "path", cfgSource)
 		// Round 33 fix (originally scoped to -cs-ip/-cs-port/-cs-gameuid only; round 34 extends it
@@ -395,8 +391,8 @@ func Run() {
 		slog.Error("-analytics requires an existing authenticated reconnect configuration; guest account creation is disabled in analytics mode")
 		os.Exit(1)
 	}
-	if *memberTHPOutput != "" && crossServer {
-		slog.Error("-member-thp-output uses the verified email/loginKey role flow, not a reconnect session; pass -no-config and omit -cs-* flags")
+	if *memberTHPOutput != "" && !crossServer && *email == "" {
+		slog.Error("-member-thp-output requires either a server-accepted reconnect session config or fresh -email verification")
 		os.Exit(1)
 	}
 
@@ -410,10 +406,12 @@ func Run() {
 		runCrossServerTest(crossServerTestOpts{
 			ip: *csIP, port: *csPort, zone: *csZone, gameUid: *csGameUid,
 			deviceID: *csDeviceID, shumeiBoxId: *csShumei, rt: *csRt, at: *csAt,
-			iosMode: *csIOS, appVersion: cfgAppVersion, versionCode: cfgVersionCode,
-			features: cfgFeatures, duelPolicy: cfgDuelPolicy, runFeature: *runFeature, runAnyway: *runAnyway,
+			iosMode: *csIOS, appVersion: cfgAppVersion, versionCode: cfgVersionCode, resVersion: cfgResVersion,
+			loginParamsBase64: cfgLoginParamsBase64,
+			features:          cfgFeatures, duelPolicy: cfgDuelPolicy, runFeature: *runFeature, runAnyway: *runAnyway,
 			interactive: *interactive, handshake: *handshake, analyticsCfg: analyticsCfg,
-			collect: *collect, listBuildings: *listBuildings, configSavePath: cfgSource,
+			memberTHPOutput: *memberTHPOutput,
+			collect:         *collect, listBuildings: *listBuildings, configSavePath: cfgSource,
 			ipExplicit: csIPSetExplicitly, portExplicit: csPortSetExplicitly,
 			zoneExplicit: csZoneSetExplicitly, gameUidExplicit: csGameUidSetExplicitly,
 			atExplicit: csAtSetExplicitly, interactiveExplicit: interactiveSetExplicitly,
@@ -1011,7 +1009,8 @@ func printVersion() {
 type crossServerTestOpts struct {
 	analyticsCfg                                                  *analytics.Config
 	ip, zone, gameUid, deviceID, shumeiBoxId, rt, at, interactive string
-	appVersion, versionCode                                       string            // session config only; see SessionConfig.AppVersion
+	memberTHPOutput                                               string
+	appVersion, versionCode, resVersion, loginParamsBase64        string            // session config only; see SessionConfig.AppVersion
 	features                                                      map[string]bool   // session config only; see SessionConfig.Features
 	duelPolicy                                                    map[string]string // session config only; see SessionConfig.DuelPolicy
 	runFeature                                                    string            // -run: run just this feature, then exit
@@ -1362,15 +1361,21 @@ func runCrossServerTest(o crossServerTestOpts) {
 		os.Exit(1)
 	}
 
-	resVersion := auth.ResVersionFor(httpClient, cv, o.iosMode, o.appVersion, o.versionCode, zone)
+	resVersion := o.resVersion
+	if resVersion == "" {
+		resVersion = auth.ResVersionFor(httpClient, cv, o.iosMode, o.appVersion, o.versionCode, zone)
+	} else {
+		slog.Info("using captured resVersion from session config", "resVersion", resVersion)
+	}
 	params := auth.CrossServerLoginParams{
 		IP: ip, Port: port, Zone: zone, GameUid: gameUid,
 		DeviceID: deviceID, AirKey: airKey,
 		AccessTok: accessTok, ShumeiBoxId: o.shumeiBoxId,
 		Handshake: o.handshake, IOSMode: o.iosMode,
 		AppVersion: o.appVersion, VersionCode: o.versionCode,
-		ResVersion: resVersion,
-		DialGame:   o.dialGame,
+		ResVersion:        resVersion,
+		LoginParamsBase64: o.loginParamsBase64,
+		DialGame:          o.dialGame,
 	}
 	result, err := auth.DoCrossServerLogin(params)
 	if err != nil && lookup != nil && !lookedUp && connectFailed(err) {
@@ -1425,8 +1430,9 @@ func runCrossServerTest(o crossServerTestOpts) {
 						IP: savedIP, Port: newPort, Zone: result.Zone,
 						GameUid: result.GameUid, DeviceID: deviceID,
 						ShumeiBoxId: o.shumeiBoxId, AccessToken: result.AccessTok,
-						IOSMode: o.iosMode, AppVersion: o.appVersion, VersionCode: o.versionCode,
-						Features: o.features, DuelPolicy: o.duelPolicy,
+						IOSMode: o.iosMode, AppVersion: o.appVersion, VersionCode: o.versionCode, ResVersion: resVersion,
+						LoginParamsBase64: o.loginParamsBase64,
+						Features:          o.features, DuelPolicy: o.duelPolicy,
 					}
 					if err := SaveSessionConfig(updated, o.configSavePath); err != nil {
 						slog.Warn("failed to persist redirected server address to session config", "path", o.configSavePath, "error", err)
@@ -1446,6 +1452,24 @@ func runCrossServerTest(o crossServerTestOpts) {
 		source := initPush.Object("user").GetInt("serverId")
 		if err := runAnalytics(conn, o.analyticsCfg, source); err != nil {
 			slog.Error("analytics failed", "error", err)
+			exitIfSessionEnded(err, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
+	}
+
+	if o.memberTHPOutput != "" {
+		initPush, initErr := game.FetchInit(conn, 15*time.Second)
+		if initErr != nil {
+			slog.Error("authenticated reconnect did not produce an init snapshot; refusing implicit-alliance THP request", "error", initErr)
+			exitIfSessionEnded(initErr, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		source := initPush.Object("user").GetInt("serverId")
+		if err := runPrivateTHPProbe(conn, source, o.memberTHPOutput); err != nil {
+			slog.Error("private member THP probe failed", "error", err)
 			exitIfSessionEnded(err, conn)
 			_ = conn.Close()
 			os.Exit(1)

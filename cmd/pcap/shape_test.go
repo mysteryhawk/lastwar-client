@@ -171,3 +171,29 @@ func TestSFSFieldTypeNames(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeAllRecoversAfterCaptureGap(t *testing.T) {
+	packet := func(action int16) []byte {
+		obj := sfs.NewSFSObject()
+		obj.PutByte("c", 0)
+		obj.PutShort("a", action)
+		obj.PutSFSObject("p", sfs.NewSFSObject())
+		return encodedPacket(t, obj)
+	}
+
+	stream := append(packet(29), []byte{0x80, 0xff, 0xff, 0, 1, 2, 3, 4, 5}...)
+	stream = append(stream, packet(1)...)
+	got := decodeAll(stream)
+	if len(got) != 2 || got[0].GetLong("a") != 29 || got[1].GetLong("a") != 1 {
+		t.Fatalf("decodeAll recovered %d packets/actions, want 29 then 1: %+v", len(got), got)
+	}
+}
+
+func TestCapturedFrameLenRejectsTruncatedAndOversizedFrames(t *testing.T) {
+	if _, ok := capturedFrameLen([]byte{0x80, 0, 4, 1, 2}); ok {
+		t.Fatal("truncated frame reported as complete")
+	}
+	if _, ok := capturedFrameLen([]byte{0x88, 0xff, 0xff, 0xff, 0xff}); ok {
+		t.Fatal("oversized frame reported as complete")
+	}
+}

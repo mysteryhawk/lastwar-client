@@ -338,6 +338,10 @@ var SensitiveSFSKeys = map[string]bool{
 	// this stays as defense-in-depth in case a future field embeds something sensitive inside
 	// this or another opaque string value.
 	"ta": true,
+	// dataConfigMd5 is opaque but a real client populates it with a string beginning with the
+	// stable game UID. Captured-template replay makes that value non-empty, so debug dumps must
+	// mask the whole field just like ta rather than relying on its misleading hash-like name.
+	"dataConfigMd5": true,
 	// mail and email are the operator's own real email address under the two key names the
 	// protocol uses for it: "mail" in the client's requests (login.go's email-verification flow,
 	// PutUtfString("mail", opts.Email) for account.login.send.verify.code and account.login.new),

@@ -72,7 +72,6 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"CoreV":                 true,
 	"count":                 true,
 	"country":               true,
-	"dataConfigMd5":         true,
 	"deeplinkParams":        true,
 	"delete_account_status": true,
 	"firstCmd":              true,
