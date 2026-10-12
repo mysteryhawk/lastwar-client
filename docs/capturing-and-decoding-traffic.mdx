@@ -133,6 +133,27 @@ Recording the build matters. An access token is bound to the identity it was iss
   The written file holds live credentials for a real account. Keep it outside the repository, as the default path in your home directory already is.
 </Warning>
 
+## Comparing a Login without exporting credentials
+
+Use `-login-shape` when diagnosing identity mismatches such as a freshly bound Android
+role receiving `E005`:
+
+```bash
+go run ./cmd/pcap -in login.pcap -login-shape
+```
+
+It searches the plain streams for SFS2X Login requests and prints credential-free JSON.
+The report includes the field names and wire types, server response class, safe
+package/platform/build values, identifier/token lengths, whether envelope `un` equals
+`p.gameUid`, whether `ta` is a JSON object, its key names, and whether its `lw_zone`
+matches the Login zone. It never prints the UID, device ID, air key, access token,
+ShuMei value, email, raw `ta` values or packet bytes. Use `-stream` to select one
+conversation when a capture contains several Logins.
+
+The capture itself still contains credentials and member/account data. Keep it outside
+Git, analyse it in a private directory, and share only the `-login-shape` JSON. This mode
+does not create a session file and does not contact the game.
+
 ## Known limitation: some captures stop decoding partway through
 
 Server→client decoding has, on several real captures to date, hit either a `DecodeObject error: expected top-level tag 18 (SFS_OBJECT), got ...` or a `zstd decode: ...` error, most often right around the same point in the bootstrap-burst response sequence, but not always at an identical byte offset. Client→server decoding has not shown this problem in any capture so far.

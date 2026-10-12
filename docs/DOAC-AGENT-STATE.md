@@ -475,3 +475,39 @@ and Login payload with the version-matched real-client role-login path, beginnin
 the known 36-character fallback device ID versus the previously observed 40-character
 real-client ID. Do not request more email codes or vary live fingerprint fields by
 trial and error. Preserve all failed private state directories and keep THP unknown.
+
+## E005 diagnosis checkpoint — privacy-safe Login comparison (2026-10-12)
+
+Focused static and protocol review found no evidence-backed Login change that can be
+made from the existing material. The only successful packet capture is an older
+iOS/Mac Catalyst session; comparing its device identifier, `ta`, latency or optional
+fields directly with the fresh Android bind would cross platform and build paths.
+`updateType=3` is not a forced-update result in the implemented version flow (`2` is);
+the live E005 must not be attributed to that value. Empty ShuMei is proven acceptable
+only for an established captured session, not for a fresh Android identity. E005 is
+therefore still an authentication/fingerprint blocker rather than THP endpoint evidence.
+
+The `pcap` utility now provides `-login-shape`, a credential-free offline JSON report
+for a captured SFS Login. It records outer/Login/parameter field names and wire types,
+safe package/platform/build values, lengths, validated device-ID shape and suffix,
+UID/air-key/TA-zone relationships, TA key JSON types, response classification and only
+strictly allowlisted `E[0-9]{3}` rejection labels. Missing comparisons remain absent,
+and multiple Login requests or responses are marked ambiguous rather than paired.
+It never prints stable identifiers, credentials, raw analytics values or packet bytes.
+The raw capture remains private and must stay outside Git.
+
+Automated verification on the VM's permanent Go 1.27.2 Linux ARM64 toolchain: focused
+`cmd/pcap` tests, vet and build pass. A full sequential race suite, repository vet and
+both CLI builds passed before the final review-only hardening; the focused checks then
+passed again after that hardening. A GPT-6 Astra high-reasoning review found and then
+confirmed fixes for ambiguous request/response pairing, absent-field equality, safe
+E005/E011 distinction, suffixed device classification, outer wire types and null TA
+zone handling. This is automated/static verification only; no new capture was taken,
+no game request was sent, and no VM deployment or live database change occurred.
+
+Exact next action: obtain one version-matched successful Android cold-start role Login
+capture from the official app, keep it private, and run `pcap -login-shape` against it.
+Compare that safe manifest with the failed Go Login manifest before changing any auth
+field. If mobile capture is not operationally available, the blocker requires user
+choice of a capture route; do not spend further email codes or guess fingerprint data.
+Only after role Login succeeds should the guarded, single read-only THP request resume.

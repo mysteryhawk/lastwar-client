@@ -34,11 +34,16 @@ func main() {
 	out := flag.String("out", "", "write <prefix>_c2s.bin and <prefix>_s2c.bin")
 	decode := flag.Bool("decode", false, "decode the reassembled stream inline instead of writing .bin files")
 	sessionOut := flag.String("session-out", "", "write the reconnect credentials from the capture's server-accepted Login to this session config JSON (0600; values are never printed). Searches every plain stream unless -stream is given")
+	loginShape := flag.Bool("login-shape", false, "print a credential-free JSON manifest of Login field names/types, safe build values, lengths and equality checks; searches every plain stream unless -stream is given")
 	flag.Parse()
 
 	var err error
-	if *sessionOut != "" {
+	if *sessionOut != "" && *loginShape {
+		err = errors.New("-session-out and -login-shape are mutually exclusive")
+	} else if *sessionOut != "" {
 		err = runSessionOut(*in, *stream, *clientStr, *sessionOut)
+	} else if *loginShape {
+		err = runLoginShape(*in, *stream, *clientStr, os.Stdout)
 	} else {
 		err = run(*in, *list, *stream, *clientStr, *out, *decode)
 	}
