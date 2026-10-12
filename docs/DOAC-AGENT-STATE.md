@@ -448,3 +448,30 @@ A fresh login shell resolves both tools under `~/.local/bin` and reports
 auth/app tests, vet and the client build pass. Future VM verification should use plain
 `go` from the `opc` login environment; do not create temporary toolchains or lower
 `go.mod` unless this installation is independently found damaged.
+
+## Live checkpoint — known own-device E005 reproduced (2026-10-12)
+
+A later fresh isolated run received and accepted a new email code. The initial guest
+session succeeded, `account.login.new` returned the authorised role, GSL `opt=login`
+returned code 0 with the same role on server 1723 and a non-empty new access token,
+and the corrected second Login sent the selected UID. The game server then rejected
+that role Login with `ec=28`, `ep=[E005]`; exit code 2 was reported. The guard again
+sent no `dragon.assign.player.info` request and created no member output.
+
+This reproduces the exact unresolved own-device sequence already documented from
+2026-10-04 in `docs/auth.mdx` and `docs/live-validation.mdx`: fresh email binding,
+successful loginKey exchange, then Android base-zone Login rejected with E005. The
+role-UID correction is still valid because it removed the preceding blank guest wire
+shape and changed E011 to the historically expected E005, but it does not solve the
+broader fresh-device acceptance wall. E005 alone does not identify the cause. The
+previous captured-token platform mismatch was separately solved; this run used the
+Android identity consistently. ShuMei absence is also already ruled out by successful
+captured-session reconnects without it.
+
+Confirmed live: account verification, role UID, server 1723 and GSL token issuance.
+Unverified: game-role authentication, Desert endpoint semantics and all member THP.
+Exact next action is offline/static comparison of the Go-generated Android device ID
+and Login payload with the version-matched real-client role-login path, beginning with
+the known 36-character fallback device ID versus the previously observed 40-character
+real-client ID. Do not request more email codes or vary live fingerprint fields by
+trial and error. Preserve all failed private state directories and keep THP unknown.
