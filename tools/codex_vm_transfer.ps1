@@ -10,6 +10,7 @@ $clientRoot = 'C:\Users\edwar\Projects\DoAC\lastwar-client'
 $dashboardRoot = 'C:\Users\edwar\Projects\DoAC\lastwar-dashboard'
 $manifestPath = Join-Path $clientRoot '.codex-transfer\vm-transfer.json'
 $keyPath = 'C:\Users\edwar\Downloads\ssh-key-2026-10-10.key.txt'
+$knownHostsPath = 'C:\Users\edwar\.ssh\known_hosts'
 $scp = 'C:\Windows\System32\OpenSSH\scp.exe'
 $ssh = 'C:\Windows\System32\OpenSSH\ssh.exe'
 $roots = @{ client = $clientRoot; dashboard = $dashboardRoot }
@@ -57,6 +58,7 @@ foreach ($entry in $paths) {
 }
 
 if (!(Test-Path -LiteralPath $keyPath -PathType Leaf)) { throw 'configured SSH key is unavailable' }
+if (!(Test-Path -LiteralPath $knownHostsPath -PathType Leaf)) { throw 'configured SSH known-hosts file is unavailable' }
 if (!(Test-Path -LiteralPath $scp -PathType Leaf)) { throw 'system scp is unavailable' }
 if (!(Test-Path -LiteralPath $ssh -PathType Leaf)) { throw 'system ssh is unavailable' }
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('doac-transfer-' + [guid]::NewGuid().ToString('N'))
@@ -70,12 +72,12 @@ try {
         Copy-Item -LiteralPath $file.Full -Destination $destination
     }
     Compress-Archive -Path (Join-Path $contentRoot '*') -DestinationPath $archive -CompressionLevel Optimal
-    & $ssh -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -- 'opc@140.238.71.236' 'umask 077; mkdir -p /tmp/doac-dev/incoming; test -d /tmp/doac-dev/incoming'
+    & $ssh -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHostsPath" -- 'opc@140.238.71.236' 'umask 077; mkdir -p /tmp/doac-dev/incoming; test -d /tmp/doac-dev/incoming'
     if ($LASTEXITCODE -ne 0) { throw "remote staging preparation failed with exit code $LASTEXITCODE" }
-    & $scp -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -- $archive 'opc@140.238.71.236:/tmp/doac-dev/incoming/'
+    & $scp -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHostsPath" -- $archive 'opc@140.238.71.236:/tmp/doac-dev/incoming/'
     if ($LASTEXITCODE -ne 0) { throw "scp failed with exit code $LASTEXITCODE" }
     $remoteArchive = '/tmp/doac-dev/incoming/' + $remoteNames[$project]
-    & $ssh -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -- 'opc@140.238.71.236' "test -s '$remoteArchive'"
+    & $ssh -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHostsPath" -- 'opc@140.238.71.236' "test -s '$remoteArchive'"
     if ($LASTEXITCODE -ne 0) { throw "remote staging verification failed with exit code $LASTEXITCODE" }
 } finally {
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
