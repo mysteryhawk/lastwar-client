@@ -664,3 +664,18 @@ binary retained as `lastwar-client.pre-events`. The first unattended run reprodu
 the Preview context and correctly issued no meteorite ranking request. The sibling
 event timer will retry daily and hourly at weekends; exact next action is automated
 round/UID coverage review after the 2026-10-17 02:10 UTC Preview boundary.
+
+## Next-season opponent intelligence boundary (2026-10-13)
+
+The sibling dashboard specification now covers four selected opponent warzones and
+alliance drilldowns. Existing protocol evidence supports target-server type-13 THP and
+statically identifies type 4 player power, while `al.rank` can address a known alliance
+ID. None of that proves opponent access, rank caps, warzone membership or completeness.
+There is no implemented/verified query for warzone-to-server mapping, top alliances by
+power or total warzone power. Do not infer these from command names.
+
+At next-season discovery, first trace the warzone mapping and alliance-power UI/handler,
+then live-probe type 13 and type 4 for one explicitly selected server. Preserve alliance
+ID/name fields currently dropped by the generic exporter before building scouting
+summaries. A claimed top-200 THP total requires exactly 200 distinct, consistently ranked
+UID rows; opponent alliance overlap requires private current-season UID retention.
