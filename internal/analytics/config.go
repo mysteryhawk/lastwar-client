@@ -54,7 +54,8 @@ func LoadConfig(path string) (*Config, error) {
 	return &c, nil
 }
 
-const THPRankingType int32 = 13 // Global/EnumType.luac, LWLF 826
+const THPRankingType int32 = 13        // Global/EnumType.luac, LWLF 826
+const PlayerPowerRankingType int32 = 4 // RankingTypeServer.POWER, LWLF 826
 
 func (c *Config) BuildQueries() ([]Query, error) {
 	out := make([]Query, 0, len(c.Queries))
@@ -91,6 +92,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q = MeteoriteAutoQuery(v.Period)
 		case "svs":
 			q = SvSQuery(v.Period)
+		case "season_battle_score":
+			q = SeasonFactionBattleScoreQuery(v.Period)
 		case "season_power":
 			size := v.PageSize
 			if size == 0 {
@@ -111,6 +114,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q, err = SeasonDevotesQuery(v.EventID, *v.SubType, start, end, v.Period)
 		case "thp":
 			q, err = RankQuery(THPRankingType, v.Global, c.TargetServer, "THP", "heroPower", v.Period)
+		case "player_power":
+			q, err = RankQuery(PlayerPowerRankingType, v.Global, c.TargetServer, "player_power", "power", v.Period)
 		case "desert_thp":
 			q = DesertTHPQuery(v.Period)
 		default:

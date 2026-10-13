@@ -137,6 +137,13 @@ func SvSQuery(period string) Query {
 	return Query{Command: "cross.throne.person.score.rank", Params: sfs.NewSFSObject(), Metric: "svs_score", Period: period, Payload: "ranks", ValueField: "score"}
 }
 
+// SeasonFactionBattleScoreQuery follows the season faction-war score screen.
+// The endpoint returns a cross-alliance list and a separate self row. Its
+// event/round retention semantics remain provisional until live validation.
+func SeasonFactionBattleScoreQuery(period string) Query {
+	return Query{Command: "lw.camp.battle.user.score.rank", Params: sfs.NewSFSObject(), Metric: "season_battle_score", Period: period, Payload: "list", ValueField: "score"}
+}
+
 func SeasonPowerQuery(rankType, pageSize int32, period string) (Query, error) {
 	if (rankType != 2 && rankType != 4) || pageSize < 1 || pageSize > 1000 {
 		return Query{}, errInvalidQuery

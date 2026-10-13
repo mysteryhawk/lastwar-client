@@ -109,3 +109,42 @@ These query builders/parsers are implemented and tested with synthetic responses
 - `lw.camp.battle.user.score.rank` has a no-parameter handler which broadcasts the reply. It needs an identified UI consumer or safe live sample before adding a parser.
 - Guest assignment to 1456 and historical returning-guest E011 are authentication/access observations, not proof any ranking command is unsupported. The current analytics CLI requires existing reconnect configuration and cannot auto-create guests.
 - No VM access was required to recover the THP constant. VM access is still needed to inspect the existing dashboard schema and use its already-authorised session environment for live validation; no deployment is implied.
+
+## Arbitrary-server scouting live evidence (2026-10-13)
+
+Read-only probes from the accepted server-1723 role session targeted server 1724. The
+type-13 THP request returned exactly 200 valid UID rows, all labelled server 1724, with
+zero parser rejects. Every row carried an alliance ID and the cohort represented 11
+alliances. The live response consistently omitted per-row `rank`; it is therefore an
+ordered server cohort of observed size 200, not yet proof of a formally ranked or
+page-complete top 200. Its aggregate THP was 25,043,972,145.
+
+The statically identified type-4 player-power request was then implemented as analytics
+kind `player_power` and live-verified against the same target. It returned exactly 200
+valid server-1724 rows with zero rejects, represented 10 alliances and had aggregate
+power 41,930,428,528. The THP and power cohorts shared 169 UIDs, confirming that they
+are related but materially different measures and must not be substituted.
+
+Finally, `al.rank {allianceId:Utf}` was issued for the alliance most represented in the
+power cohort. It returned 95 valid UID-keyed server-1724 rows, all with the requested
+alliance ID. This verifies arbitrary-opponent alliance access for that sample. The
+collector still records `complete_roster=false`: the response proves an observed roster,
+not completeness or pagination semantics. Raw identities and alliance IDs remain in
+private VM captures only.
+
+For Wednesday/Saturday season-battle participation, the strongest current candidate is
+`lw.camp.battle.user.score.rank {}`. Static evidence proves a no-parameter response
+handler but not its individual row shape, score meaning, event/round scope, retention or
+opponent visibility. `lw.season.alliance.devotes.rank.info` remains a contribution
+candidate, but its `day` field is an active-event subtype rather than a weekday. Neither
+endpoint may be treated as attendance until a version-matched UI trace and applicable
+live response establish its scope and completeness.
+
+The matching season-2 score-list UI was subsequently traced. Opening it sends the
+no-parameter command, consumes `list[]` plus `self`, sorts by `rank`, and renders
+`score`, `uid`/name, `serverId` and alliance abbreviation. Its own-alliance toggle is a
+client-side filter over the returned cross-alliance list. A live server-1723 request on
+2026-10-13 was accepted and returned an explicit empty `list` with no error. This proves
+current callability and the empty payload shape, but not last-week retention or battle
+applicability. The implemented provisional metric is `season_battle_score`; empty means
+no currently visible ranking, not zero participation.

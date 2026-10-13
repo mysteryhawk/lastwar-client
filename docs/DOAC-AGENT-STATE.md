@@ -679,3 +679,43 @@ then live-probe type 13 and type 4 for one explicitly selected server. Preserve 
 ID/name fields currently dropped by the generic exporter before building scouting
 summaries. A claimed top-200 THP total requires exactly 200 distinct, consistently ranked
 UID rows; opponent alliance overlap requires private current-season UID retention.
+
+## Random-server scouting milestone (2026-10-13)
+
+The accepted server-1723 session can read server 1724 without changing game state.
+Live type-13 THP and type-4 ordinary-player-power probes each returned 200 valid unique
+UID rows with matching server metadata and zero rejects. The cohorts overlapped by 169
+UIDs; their aggregate values were respectively 25,043,972,145 THP and 41,930,428,528
+power. Per-row ranks were absent in both responses, so the correct current label is an
+observed 200-row server cohort rather than a proven complete top-200 ranking.
+
+All THP rows had alliance IDs across 11 alliances; power rows covered 10 alliances. An
+`al.rank` request for the alliance most represented in the power cohort returned 95
+valid UID-keyed members, all on server 1724 and in the requested alliance. This proves
+opponent roster readability for one sample, but not full-roster semantics; keep
+`complete_roster=false`. Identities, alliance IDs and captures remain private.
+
+Client code now recognises analytics query kind `player_power`, issuing `rank.get` type
+4 and strictly parsing `power`. Focused analytics tests passed in the disposable VM
+checkout before the live request. Type 4 is live-verified for server 1724, while warzone
+mapping, alliance-power ordering and roster completeness remain unverified.
+
+Season-battle activity is a separate discovery track. The best static candidate is
+`lw.camp.battle.user.score.rank {}`, but its row schema, event/round identity, score
+semantics, retention and opponent scope are unresolved. Exact next action is to trace
+its version-matched manager/UI consumer and schedule, then make one private read-only
+applicable probe. Do not interpret missing rows as non-participation. In parallel, the
+next scouting action is discovery of the server/warzone mapping and top-alliance power
+endpoint; represented alliances in a capped player cohort are not necessarily the true
+top ten alliances.
+
+Follow-up static tracing identified the exact season-2 faction-war score-list UI. It
+sends `lw.camp.battle.user.score.rank {}` on open and renders `list[]` rows by rank,
+score, UID/name, server and alliance abbreviation; “my alliance” is only a client-side
+filter. The client now supports this as provisional metric `season_battle_score`. Focused
+analytics/application tests passed on Go 1.27.2. A live server-1723 probe was accepted
+and returned an explicit empty list with no error and zero rejects. This verifies
+callability and empty-payload handling only; retention and Wednesday/Saturday battle
+windows remain unverified. Exact next action is to collect before, during and after the
+next applicable Wednesday/Saturday faction battle and compare score changes, without
+deploying the temporary binary or importing the empty probe.

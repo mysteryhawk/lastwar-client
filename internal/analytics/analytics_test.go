@@ -104,6 +104,14 @@ func TestQueriesHaveLuaWireTags(t *testing.T) {
 	if q.Params.GetInt("type") != 13 {
 		t.Fatal("wrong THP constant")
 	}
+	power, e := RankQuery(PlayerPowerRankingType, 0, 1724, "player_power", "power", "p")
+	if e != nil || power.Params.GetInt("type") != 4 || power.ValueField != "power" {
+		t.Fatal("wrong player power query")
+	}
+	battle := SeasonFactionBattleScoreQuery("season-battle:test")
+	if battle.Command != "lw.camp.battle.user.score.rank" || battle.Payload != "list" || battle.ValueField != "score" {
+		t.Fatal("wrong season battle score query")
+	}
 }
 
 func TestParseRankingStrictUIDValueAndAlliance(t *testing.T) {
@@ -312,6 +320,8 @@ func TestAnalyticsConfigRejectsUnknownOperations(t *testing.T) {
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"collect","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"vs_daily","period":"p","day":7}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p","grab_times":0}]}`, true},
+		{`{"target_server":1724,"alliance_id":"synthetic","output":"s","queries":[{"kind":"player_power","period":"p"}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_battle_score","period":"p"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"desert_thp","period":"p"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_devotes","period":"p","event_id":"event","sub_type":0}]}`, true},
@@ -335,7 +345,7 @@ func TestAdditionalRankingQueriesAndEchoDimensions(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	queries = append(queries, m, SvSQuery("svs:test"))
+	queries = append(queries, m, SvSQuery("svs:test"), SeasonFactionBattleScoreQuery("season-battle:test"))
 	season, e := SeasonPowerQuery(2, 100, "season:test")
 	if e != nil {
 		t.Fatal(e)
