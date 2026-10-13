@@ -46,6 +46,9 @@ func (c *Collector) DiscoverMeteorite(ctx context.Context, q Query) (Snapshot, [
 			s.Parameters[key] = strconv.FormatInt(value, 10)
 		}
 	}
+	if begin := s.Parameters["beginTime"]; begin != "" {
+		s.Period = "meteorite:" + begin
+	}
 	s.Status, s.PayloadPresent, s.Validation = "ok", true, "meteorite_context_response_received"
 	if stage < 3 { // MATCH/PREVIEW have no completed or current grab ranking.
 		return s, nil, nil
@@ -53,7 +56,7 @@ func (c *Collector) DiscoverMeteorite(ctx context.Context, q Query) (Snapshot, [
 	queries := make([]Query, 0, grabTimes+1)
 	for round := int32(0); round <= int32(grabTimes); round++ {
 		rank, buildErr := MeteoriteQuery(round, 1, 1000,
-			q.Period+":round:"+strconv.FormatInt(int64(round), 10))
+			s.Period+":round:"+strconv.FormatInt(int64(round), 10))
 		if buildErr != nil {
 			return s, nil, buildErr
 		}
