@@ -658,3 +658,9 @@ Unverified: meteorite ranking coverage once the event reaches Grab, event retent
 alliance coverage, and season contribution semantics. Immediate next action is to run
 the automatic meteorite collector during/after the first Grab stage, measure UID
 overlap with the verified 100-member cohort, and retain missing members as unknown.
+
+Deployment checkpoint: the tested binary was installed privately with the previous
+binary retained as `lastwar-client.pre-events`. The first unattended run reproduced
+the Preview context and correctly issued no meteorite ranking request. The sibling
+event timer will retry daily and hourly at weekends; exact next action is automated
+round/UID coverage review after the 2026-10-17 02:10 UTC Preview boundary.
