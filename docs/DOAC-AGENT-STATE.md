@@ -556,3 +556,23 @@ Exact next action after this checkpoint is for the user to compare the private 1
 with the Canyon/Desert participant list. After manual scope confirmation, collect a
 same-session `al.rank` roster and compare UID sets before enabling ingestion or any
 roster-completeness claim.
+
+## Manual scope confirmation and MVP direction (2026-10-13)
+
+The user confirmed that all 100 returned names are the expected DoAC member set and
+spot-checked 10 THP values against the in-game participant selector, including players
+whose stable UIDs carry non-1723 suffixes; all 10 matched. Treat the guarded
+`dragon.assign.player.info` result as live-verified DoAC THP coverage for display and
+history. Continue to treat UID suffixes as historical/origin information rather than
+current server scope, and keep `complete_roster=false` until `al.rank` semantics are
+independently verified for membership transitions.
+
+The dashboard branch now contains the reviewable repeatable-MVP bridge and runner: once
+daily after the 02:00 UTC reset, execute this exact-100 guarded probe, import successful
+normalised results transactionally, and record authentication/session failures without
+inventing zero scores. No client code changed in this milestone. The accepted private
+session has not been copied to the VM and no feature-branch binary, schedule, dashboard
+or live database has been deployed. Exact client next action, after deployment approval,
+is to install the already tested `82e306e` binary/session privately and verify repeated
+reconnects across separate scheduled processes; exit 2 must stop and surface
+`authentication_required`, not trigger unattended email verification.
