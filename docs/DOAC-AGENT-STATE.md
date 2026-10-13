@@ -734,8 +734,9 @@ deploying the temporary binary or importing the empty probe.
 
 Codex CLI 0.160.0 is active. “Always approve” has accumulated exact
 `prefix_rule` entries in `C:\Users\edwar\.codex\rules\default.rules`; it did not save a
-semantic permission for SCP, Git or GitHub. On Windows the matcher sees the runtime
-PowerShell executable, `-Command`, and the entire command text as three arguments.
+semantic permission for SCP, Git or GitHub. This executor presents the runtime
+PowerShell executable, `-NoProfile`, `-Command`, and the entire command text as four
+arguments.
 Changing a source file, destination, quoting, option order, compound command or
 PowerShell executable therefore misses the saved rule and prompts again. The active
 managed profile remains workspace-write/network-restricted with on-request escalation;
@@ -751,6 +752,12 @@ remote and branch identities. A single exact invocation-only rule was checked wi
 CLI 0.162.1 `codex execpolicy check`: intended calls allow; helper arguments, direct SCP
 to production, arbitrary PowerShell and force-push-main examples do not match. The active
 0.160.0 CLI has no `execpolicy` subcommand, which is the installed-version limitation.
-The user approved that exact rule and it is now installed; no sandbox setting was
-weakened. The remaining acceptance check is one bounded real transfer to the isolated
-incoming directory plus a policy-only rejection check for a direct production-path copy.
+The user approved that exact rule and the actual four-argument executor form is now the
+single installed helper allowance; no sandbox setting was weakened. A bounded bundle of
+the three committed helper sources was successfully uploaded and verified non-empty at
+`/tmp/doac-dev/incoming/lastwar-client-bundle.zip`. A policy-only check of direct SCP to
+`/home/opc/lastwar-client/tools/` matched no rule and was not executed. The first two
+acceptance attempts stopped safely before transfer: scalar JSON property validation was
+fixed, then the helper was pointed explicitly at the established user `known_hosts` file
+while retaining strict host-key verification. The final escalated-path invocation used
+the persistent rule without requiring a new conversational permission decision.
