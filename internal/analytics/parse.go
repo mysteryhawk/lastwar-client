@@ -178,7 +178,7 @@ func ParseSnapshot(s *Snapshot, q Query, p *sfs.SFSObject) error {
 		if n, ok := integer(o, "rank"); ok && n > 0 {
 			r.Rank = &n
 		}
-		if !q.Roster {
+		if q.ValueField != "" {
 			n, ok := integer(o, q.ValueField)
 			if !ok || n < 0 {
 				s.RejectedRows++

@@ -207,6 +207,27 @@ func TestMissingEmptyErrorsAndRosterIdentity(t *testing.T) {
 	}
 }
 
+func TestBaseLevelUsesRosterAliasesWithoutRosterAuthority(t *testing.T) {
+	q, err := BaseLevelQuery("A", "day:test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := sfs.NewSFSObject()
+	r.PutUtfString("uid", "legacy")
+	r.PutUtfString("userId", "stable")
+	r.PutUtfString("playerName", "Synthetic")
+	r.PutInt("mainCityLv", 31)
+	s := Snapshot{AllianceID: "A", SourceServer: 1723, TargetServer: 1723}
+	if err := ParseSnapshot(&s, q, payload("list", r)); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status != "ok" || len(s.Records) != 1 || s.Records[0].UID != "stable" ||
+		s.Records[0].Name != "Synthetic" || s.Records[0].Value == nil ||
+		*s.Records[0].Value != 31 || s.CompleteRoster {
+		t.Fatalf("base level parse = %+v", s)
+	}
+}
+
 func TestCollectorRoundTripAndExportAllowlist(t *testing.T) {
 	c, server := session.NewPipeGameConnPair(t)
 	d := c.StartDispatcher()
@@ -258,6 +279,7 @@ func TestAnalyticsConfigRejectsUnknownOperations(t *testing.T) {
 		valid bool
 	}{
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"snapshots.jsonl","queries":[{"kind":"vs_daily","period":"test-day","day":1},{"kind":"thp","period":"test-day"}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"base_level","period":"test-day"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"collect","period":"p"}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"vs_daily","period":"p","day":7}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p","grab_times":0}]}`, true},

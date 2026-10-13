@@ -81,6 +81,19 @@ func RosterQuery(allianceID, period string) (Query, error) {
 	return Query{Command: "al.rank", Params: p, Metric: "membership", Period: period, Payload: "list", Roster: true}, nil
 }
 
+// BaseLevelQuery uses the read-only alliance roster response. Live upstream
+// evidence and the client Lua identify mainCityLv as the member's base level;
+// roster aliases are retained but the observation is not roster authority.
+func BaseLevelQuery(allianceID, period string) (Query, error) {
+	q, err := RosterQuery(allianceID, period)
+	if err != nil {
+		return Query{}, err
+	}
+	q.Metric = "base_level"
+	q.ValueField = "mainCityLv"
+	return q, nil
+}
+
 // DesertTHPQuery follows the Desert Storm participant selector. The request
 // is implicitly scoped to the logged-in alliance and returns an unpaged users
 // collection containing uid and heroPower, distinct from city power.

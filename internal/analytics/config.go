@@ -73,6 +73,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q, err = VSQuery(2, v.Day, v.Period)
 		case "membership":
 			q, err = RosterQuery(c.AllianceID, v.Period)
+		case "base_level":
+			q, err = BaseLevelQuery(c.AllianceID, v.Period)
 		case "meteorite":
 			if v.GrabTimes == nil {
 				return nil, errInvalidQuery

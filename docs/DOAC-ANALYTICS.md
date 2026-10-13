@@ -36,6 +36,7 @@ Supported query kinds:
 | Kind | Required options beyond `kind` and `period` | Defaults/meaning |
 |---|---|---|
 | `membership` | none | Explicit config alliance ID; `al.rank` |
+| `base_level` | none | `al.rank` member `mainCityLv`; UID/name aliases; not roster authority |
 | `thp` | none | `rank.get`, type 13, `heroPower`; global 0 (config can specify 1) |
 | `vs_daily` | `day`: 1..6 | type 0; same explicit game-week label for days 1–6 |
 | `vs_weekly` | none | type 1; no day |
