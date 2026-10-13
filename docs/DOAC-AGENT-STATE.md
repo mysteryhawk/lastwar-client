@@ -729,3 +729,28 @@ callability and empty-payload handling only; retention and Wednesday/Saturday ba
 windows remain unverified. Exact next action is to collect before, during and after the
 next applicable Wednesday/Saturday faction battle and compare score changes, without
 deploying the temporary binary or importing the empty probe.
+
+## Codex persistent-permission diagnosis (2026-10-14)
+
+Codex CLI 0.160.0 is active. “Always approve” has accumulated exact
+`prefix_rule` entries in `C:\Users\edwar\.codex\rules\default.rules`; it did not save a
+semantic permission for SCP, Git or GitHub. On Windows the matcher sees the runtime
+PowerShell executable, `-Command`, and the entire command text as three arguments.
+Changing a source file, destination, quoting, option order, compound command or
+PowerShell executable therefore misses the saved rule and prompts again. The active
+managed profile remains workspace-write/network-restricted with on-request escalation;
+no deny/prompt rule was found overriding a matching allow rule.
+
+One fixed no-argument entry point, `tools/codex_doac_operation.ps1`, dispatches only to
+two reviewed no-argument helpers: `codex_vm_transfer.ps1`
+accepts only tracked DoAC files or bounded staged artefacts, rejects sensitive paths and
+uploads one bounded archive to `/tmp/doac-dev/incoming/`; `codex_publish.ps1` can only
+push the two named feature branches without force or update their existing draft PR #1
+from fixed ignored body files. Both validate ignored manifests and fixed repository,
+remote and branch identities. A single exact invocation-only rule was checked with the staged
+CLI 0.162.1 `codex execpolicy check`: intended calls allow; helper arguments, direct SCP
+to production, arbitrary PowerShell and force-push-main examples do not match. The active
+0.160.0 CLI has no `execpolicy` subcommand, which is the installed-version limitation.
+The user approved that exact rule and it is now installed; no sandbox setting was
+weakened. The remaining acceptance check is one bounded real transfer to the isolated
+incoming directory plus a policy-only rejection check for a direct production-path copy.
