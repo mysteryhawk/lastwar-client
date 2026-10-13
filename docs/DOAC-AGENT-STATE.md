@@ -607,3 +607,18 @@ Exact next protocol action is to establish the active VS game-week identifier an
 day-1-to-day-6 mapping from live/static evidence, then add idempotent daily VS
 collection without changing the weekly series. The first unattended THP run remains
 due at 04:00 UTC on 2026-10-14 and should be checked independently.
+
+## Dashboard contract milestone — UID-joined VS views (2026-10-13)
+
+The sibling dashboard now joins all player-facing VS projections on the collector's
+stable UID rather than display name. It is ready for current-week day columns,
+weekly-ranking total/6 history, multi-week day-of-week analysis, and conservative
+membership counts. Missing UID/day rows remain unknown and explicit zeroes remain zero.
+An additive game-day mapping prevents historical VS day denominators from using a
+roster observed on the later query date.
+
+No client protocol behaviour changed in this milestone. Exact client next action is
+still to verify the game-week identifier/day-1-to-day-6 mapping and daily ranking
+coverage, then collect daily membership observations by UID. `complete_roster` must
+remain false until live completeness is independently proven; only successive complete
+rosters may establish joins or departures.
