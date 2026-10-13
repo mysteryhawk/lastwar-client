@@ -1,6 +1,16 @@
 # DoAC agent state
 
-Updated: 2026-10-11. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
+## Standing operating authority (2026-10-14)
+
+Repository-wide autonomous-development authority and safety boundaries are recorded in
+[`../AGENTS.md`](../AGENTS.md). They supersede earlier requirements for individual
+approval of routine SSH access, project-local toolchain work, temporary validation,
+ordinary development commits and pushes. They do not authorise production deployment,
+live-database mutation, persistent VM jobs, paid infrastructure, gameplay actions,
+default-branch merges or destructive operations. On live authentication rejection,
+stop further authentication attempts immediately and continue offline.
+
+Updated: 2026-10-14. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
 
 ## Current state
 
