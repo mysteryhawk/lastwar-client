@@ -633,3 +633,28 @@ to calculate count/sum/median and adjacent-capture matched growth, while SQLite 
 no top-200 player identities. The first live benchmark returned exactly 200 rows with
 matching server metadata and no per-row rank field; the dashboard accepts that
 consistent live shape while rejecting mixed/duplicate rank shapes.
+
+## Event discovery and live availability (2026-10-13)
+
+Static Lua and a guarded live server-1723 probe now establish the meteorite discovery
+path. `meteorite.act.info` is read-only and returns `beginTime`, `stage`,
+`stageEndTime` and zero-based `grabTimes`; Lua maps stages 1–5 to Match, Preview,
+Grab, Rest and Results. The live response was Preview, round 0, beginning
+2026-10-13 02:00 UTC and ending that stage 2026-10-17 02:10 UTC. Raw responses remain
+private. `meteorite_auto` records only those allowlisted fields and expands into
+round 0..`grabTimes` personal ranking queries only from Grab onwards, so schedules and
+rounds no longer depend on an operator prompt or guess.
+
+A separate authenticated live probe on the observed source server 1723 returned
+explicit empty payloads for candidate SvS personal score and season personal power
+types 2 and 4. This proves the commands remain callable now, not that last weekend's
+SvS never existed; the SvS endpoint has no history selector. Nothing was interpreted
+as zero or imported as member performance. Season devotes remains unqueried because
+no active event ID/subtype has been established.
+
+Automated verification: full `go test ./...` passed in a disposable VM checkout with
+Go 1.27.2. Live verification: the schedule fields above and empty ranking shapes.
+Unverified: meteorite ranking coverage once the event reaches Grab, event retention,
+alliance coverage, and season contribution semantics. Immediate next action is to run
+the automatic meteorite collector during/after the first Grab stage, measure UID
+overlap with the verified 100-member cohort, and retain missing members as unknown.

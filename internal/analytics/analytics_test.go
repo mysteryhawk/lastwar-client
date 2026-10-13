@@ -34,6 +34,35 @@ func payload(key string, rows ...*sfs.SFSObject) *sfs.SFSObject {
 	return p
 }
 
+type staticRequester struct{ params *sfs.SFSObject }
+
+func (r staticRequester) Request(context.Context, string, *sfs.SFSObject) (*session.ExtensionMessage, error) {
+	return &session.ExtensionMessage{Params: r.params}, nil
+}
+
+func TestMeteoriteAutoDiscoveryUsesLiveStageAndRounds(t *testing.T) {
+	p := sfs.NewSFSObject()
+	p.PutInt("stage", 4)
+	p.PutInt("grabTimes", 2)
+	p.PutLong("beginTime", 100)
+	p.PutLong("stageEndTime", 200)
+	c := Collector{Client: staticRequester{p}, SourceServer: 1723, TargetServer: 1723, AllianceID: "A"}
+	s, queries, err := c.DiscoverMeteorite(context.Background(), MeteoriteAutoQuery("meteorite:event"))
+	if err != nil || s.Status != "ok" || s.Parameters["stage"] != "4" || len(queries) != 3 {
+		t.Fatalf("snapshot=%+v queries=%d err=%v", s, len(queries), err)
+	}
+	for i, q := range queries {
+		if q.Params.GetInt("grabTimes") != int32(i) || q.Params.GetInt("count") != 1000 {
+			t.Fatalf("round %d = %v", i, q.Params)
+		}
+	}
+	p.PutInt("stage", 2)
+	_, queries, err = c.DiscoverMeteorite(context.Background(), MeteoriteAutoQuery("meteorite:event"))
+	if err != nil || len(queries) != 0 {
+		t.Fatal("preview stage must not guess rankings")
+	}
+}
+
 func TestQueriesHaveLuaWireTags(t *testing.T) {
 	for kind := int32(0); kind < 3; kind++ {
 		day := int32(0)

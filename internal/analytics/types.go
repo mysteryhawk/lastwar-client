@@ -54,6 +54,12 @@ type Query struct {
 	FilterAlliance                      bool
 }
 
+// MeteoriteAutoQuery first reads the event's current schedule/stage. The app
+// expands it into round rankings only when the server reports a rankable round.
+func MeteoriteAutoQuery(period string) Query {
+	return Query{Command: "meteorite.act.info", Params: sfs.NewSFSObject(), Metric: "meteorite_context", Period: period}
+}
+
 func VSQuery(kind, day int32, period string) (Query, error) {
 	if kind < 0 || kind > 2 {
 		return Query{}, errInvalidQuery

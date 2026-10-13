@@ -87,6 +87,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 				count = 100
 			}
 			q, err = MeteoriteQuery(*v.GrabTimes, start, count, v.Period)
+		case "meteorite_auto":
+			q = MeteoriteAutoQuery(v.Period)
 		case "svs":
 			q = SvSQuery(v.Period)
 		case "season_power":
