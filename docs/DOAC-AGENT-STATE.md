@@ -630,5 +630,6 @@ UID-keyed growth, relative growth, robust trend, momentum and base-upgrade conte
 also has an aggregate-only runner for the already live-verified server-1723 type-13
 top-200 query. No client protocol code changed. The raw public ranking is used privately
 to calculate count/sum/median and adjacent-capture matched growth, while SQLite retains
-no top-200 player identities. Exact next client-side check is the first scheduled
-benchmark response: it must remain exactly ranks 1–200 with matching server metadata.
+no top-200 player identities. The first live benchmark returned exactly 200 rows with
+matching server metadata and no per-row rank field; the dashboard accepts that
+consistent live shape while rejecting mixed/duplicate rank shapes.
