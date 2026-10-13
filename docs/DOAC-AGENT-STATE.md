@@ -622,3 +622,13 @@ still to verify the game-week identifier/day-1-to-day-6 mapping and daily rankin
 coverage, then collect daily membership observations by UID. `complete_roster` must
 remain false until live completeness is independently proven; only successive complete
 rosters may establish joins or departures.
+
+## THP performance analytics contract (2026-10-13)
+
+The sibling dashboard now consumes the existing guarded daily member THP series for
+UID-keyed growth, relative growth, robust trend, momentum and base-upgrade context. It
+also has an aggregate-only runner for the already live-verified server-1723 type-13
+top-200 query. No client protocol code changed. The raw public ranking is used privately
+to calculate count/sum/median and adjacent-capture matched growth, while SQLite retains
+no top-200 player identities. Exact next client-side check is the first scheduled
+benchmark response: it must remain exactly ranks 1–200 with matching server metadata.
