@@ -581,3 +581,29 @@ No collector login was triggered during deployment verification. Exact client ne
 action is to inspect the first scheduled process on 2026-10-14 and confirm a successful
 reconnect and exact-100 output; exit 2 must remain a visible
 `authentication_required` failure and must not trigger unattended email verification.
+
+## Live ranking expansion — base level and weekly VS (2026-10-13)
+
+The read-only analytics collector now supports alliance-scoped `al.rank` base-level
+observations using `mainCityLv`, while retaining UID as the stable key. Live validation
+used the accepted server-1723 session. A fresh participant THP query returned the
+manually verified 100-member set; the public type-13 THP ranking returned 200 rows.
+Their UID intersection contained 11 records, all carrying the same non-empty alliance
+identifier. That identifier is stored privately and is not logged or committed.
+
+Using that verified scope, a live base-level request returned 100 records with zero
+rejections, and a live weekly VS request returned 99 records with zero rejections.
+These results verify endpoint parsing and current coverage, not authoritative roster
+completeness. In particular, the missing VS observation remains unknown rather than
+zero, and no membership departure is inferred. The weekly VS capture has the explicit
+provisional period `live-probe:2026-10-13`; its game-week semantics are unverified and
+it must not be combined with summed daily VS observations.
+
+Automated verification on the VM's permanent Go 1.27.2 toolchain passed focused
+analytics tests, the application tests with the fixture-compatible umask, vet and a
+client build. The reviewed binary was installed privately. The dashboard now imports
+the verified base-level and weekly-VS captures under the same private numeric scope.
+Exact next protocol action is to establish the active VS game-week identifier and
+day-1-to-day-6 mapping from live/static evidence, then add idempotent daily VS
+collection without changing the weekly series. The first unattended THP run remains
+due at 04:00 UTC on 2026-10-14 and should be checked independently.
