@@ -573,6 +573,11 @@ normalised results transactionally, and record authentication/session failures w
 inventing zero scores. No client code changed in this milestone. The accepted private
 session has not been copied to the VM and no feature-branch binary, schedule, dashboard
 or live database has been deployed. Exact client next action, after deployment approval,
-is to install the already tested `82e306e` binary/session privately and verify repeated
-reconnects across separate scheduled processes; exit 2 must stop and surface
-`authentication_required`, not trigger unattended email verification.
+was completed on 2026-10-13: the feature-branch collector was built on the VM using its
+permanent Go 1.27.2 ARM64 toolchain and installed privately with the accepted session.
+The dashboard imported the manually verified 100-member baseline and schedules isolated
+processes at 04:00, 04:15, 04:30 and 04:45 UTC, skipping later retries after success.
+No collector login was triggered during deployment verification. Exact client next
+action is to inspect the first scheduled process on 2026-10-14 and confirm a successful
+reconnect and exact-100 output; exit 2 must remain a visible
+`authentication_required` failure and must not trigger unattended email verification.
