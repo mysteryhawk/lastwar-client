@@ -12,7 +12,7 @@ $projects = @{
 }
 if (!(Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'publish manifest is missing' }
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
-if ($manifest.PSObject.Properties.Name.Count -ne 2 -or
+if (@($manifest.PSObject.Properties.Name).Count -ne 2 -or
     @($manifest.PSObject.Properties.Name | Where-Object { $_ -notin @('project','action') }).Count) {
     throw 'manifest fields must be exactly project and action'
 }

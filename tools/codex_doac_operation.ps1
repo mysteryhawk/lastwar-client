@@ -8,7 +8,7 @@ $root = 'C:\Users\edwar\Projects\DoAC\lastwar-client'
 $manifestPath = Join-Path $root '.codex-transfer\operation.json'
 if (!(Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'operation manifest is missing' }
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
-if ($manifest.PSObject.Properties.Name.Count -ne 1 -or
+if (@($manifest.PSObject.Properties.Name).Count -ne 1 -or
     @($manifest.PSObject.Properties.Name | Where-Object { $_ -ne 'action' }).Count) {
     throw 'manifest field must be exactly action'
 }
