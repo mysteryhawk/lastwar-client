@@ -770,3 +770,11 @@ observed 200-row cohorts as complete. Synthetic isolated-VM verification passed 
 importer/runner and 26 dashboard tests). No live capture was imported and no production
 service/database changed. The next client-side action is producing a reviewed private
 server-1724 pair for isolated end-to-end validation; raw identities stay private.
+
+That private pair has now passed the dashboard's strict scouting importer into a
+disposable `/tmp` database (one THP and one power snapshot). Production remained
+untouched and no identities were printed. The dashboard added an aggregate-only
+`--summary` mode so future validation does not require ad-hoc SQL. The interrupted
+follow-up query means the previously recorded totals and 169-UID overlap were not
+independently re-read from this disposable database; the original live evidence remains
+the source for those figures.
