@@ -778,3 +778,10 @@ untouched and no identities were printed. The dashboard added an aggregate-only
 follow-up query means the previously recorded totals and 169-UID overlap were not
 independently re-read from this disposable database; the original live evidence remains
 the source for those figures.
+
+The dashboard scouting preview was subsequently production-deployed with explicit owner
+approval. A final isolated gate passed 40 importer/runner and 26 Flask tests. The private
+server-1724 captures imported into production as 200 THP, 200 ordinary-power and 95
+observed opponent-roster rows; all remain incomplete and no identities were printed.
+Dashboard and Quick Tunnel services are active. This did not deploy a new game client,
+start a game session or issue any game request.
