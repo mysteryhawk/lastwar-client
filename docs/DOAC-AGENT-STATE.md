@@ -761,3 +761,12 @@ acceptance attempts stopped safely before transfer: scalar JSON property validat
 fixed, then the helper was pointed explicitly at the established user `known_hosts` file
 while retaining strict host-key verification. The final escalated-path invocation used
 the persistent rule without requiring a new conversational permission decision.
+
+Cross-repository milestone: `lastwar-dashboard` now has explicit transactional scouting
+ingestion for this client's live-observed `rank.get` type-13 THP and type-4 ordinary
+power exports. It requires exact type/metric/target-server agreement and matching row
+server metadata, writes only to separate `scouting_*` tables and never treats the
+observed 200-row cohorts as complete. Synthetic isolated-VM verification passed (36
+importer/runner and 26 dashboard tests). No live capture was imported and no production
+service/database changed. The next client-side action is producing a reviewed private
+server-1724 pair for isolated end-to-end validation; raw identities stay private.
