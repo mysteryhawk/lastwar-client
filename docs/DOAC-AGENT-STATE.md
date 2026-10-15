@@ -811,3 +811,12 @@ force pushes stay outside the permission.
 Immediate permission-maintenance action: use only `tools/codex_doac_operation.ps1` for
 these recurring operations. Add a reviewed hard-coded operation rather than broadening
 the allow rule to PowerShell, SSH, SCP, Git or GitHub.
+
+## Dashboard UI deployment cross-repository checkpoint (2026-10-15)
+
+Dashboard commit `2afbc6b` passed local and isolated-VM verification and was deployed to
+the existing dashboard service. No collector binary, live game session, game request,
+database, capture or private configuration was changed. Gunicorn and the Quick Tunnel
+are active; the current tunnel URL is recorded in the dashboard agent-state document.
+The next client-side protocol action remains static tracing of the unverified season
+kill/conquest/exploration leaderboard sources before any bounded live request.
