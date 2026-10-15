@@ -150,6 +150,8 @@ func TestLiveObservedTHPAndEmptyVSShapes(t *testing.T) {
 	live := sfs.NewSFSObject()
 	live.PutUtfString("uid", "synthetic-uid")
 	live.PutUtfString("allianceId", "A")
+	live.PutUtfString("alliancename", "Alliance Alpha")
+	live.PutUtfString("abbr", "ALP")
 	live.PutInt("srcServer", 1723)
 	live.PutLong("heroPower", 123)
 	s := Snapshot{}
@@ -157,7 +159,8 @@ func TestLiveObservedTHPAndEmptyVSShapes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if s.Status != "ok" || len(s.Records) != 1 || s.Records[0].AllianceID != "A" ||
-		s.Records[0].ServerID != 1723 || *s.Records[0].Value != 123 {
+		s.Records[0].ServerID != 1723 || s.Records[0].AllianceName != "Alliance Alpha" ||
+		s.Records[0].AllianceAbbr != "ALP" || *s.Records[0].Value != 123 {
 		t.Fatalf("live THP aliases not preserved: %+v", s)
 	}
 	for kind, metric := range []string{"vs_daily", "vs_weekly", "vs_season"} {

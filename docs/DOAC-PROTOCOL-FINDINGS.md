@@ -148,3 +148,22 @@ client-side filter over the returned cross-alliance list. A live server-1723 req
 current callability and the empty payload shape, but not last-week retention or battle
 applicability. The implemented provisional metric is `season_battle_score`; empty means
 no currently visible ranking, not zero participation.
+
+## Alliance power ranking static evidence (2026-10-15)
+
+Version-matched Lua identifies `AllianceRankList` as `alliance.rank`.
+`AllianceRankListMessage` sends one integer field, `ismerge`, and passes the response to
+`RankDataManager:ParseAllianceRankData`, which reads `serverRanking`.
+`AllianceRankData:ParseData` maps `alliancename`, `abbr`, `fightpower`, leader, rank,
+country and `serverId`/`srcServer`. This is the correct source for genuine alliance total
+power; summing incomplete player-power observations is not equivalent.
+
+No target `serverId` appears in the request shape. A request on the current server-1723
+session can therefore be evaluated only for that session's ranking scope. Static evidence
+does not authorise or prove arbitrary-server alliance-rank access for server 1724. A
+specialised alliance-entity export is still required before a bounded live call; player
+UID records must not be repurposed as alliance records.
+
+The existing `PlayerRankData` path also maps `alliancename` and `abbr`. These two labels
+are now allowlisted on normal `rank.get` player records so future scoped scouting captures
+can display human-readable alliance names while retaining alliance ID as the join key.

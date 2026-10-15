@@ -21,8 +21,30 @@ if (@($manifest.PSObject.Properties.Name).Count -ne 1 -or
 
 $commands = @{
     resources = 'uptime; free -h; df -h /home/opc'
+    go_toolchain = 'command -v go || true; find /home/opc -maxdepth 5 -type f \( -name go -o -name gofmt \) -perm -u+x -print | sort | head -20'
     lua_season_index = "grep -Ei 'season.*trend|season.*contribution|devotes|camp\.battle|conquest|explor|kill.*rank' /home/opc/lastwar-lua/matches.tsv /home/opc/lastwar-lua/modules.tsv | head -240"
     lua_layout = "find /home/opc/lastwar-lua -maxdepth 2 -type d -print | sort | head -100; find /home/opc/lastwar-lua -maxdepth 3 -type f \( -name '00401*' -o -name '01748*' -o -name '02786*' -o -name '02963*' \) -print | head -80"
+    lua_alliance_rank = "grep -Ei 'alliance.*(power|rank)|rank.*alliance|alliancename|allianceName|alliance.*abbr' /home/opc/lastwar-lua/matches.tsv /home/opc/lastwar-lua/modules.tsv | head -320"
+    lua_alliance_rank_detail = @'
+for n in 00457 00459 01044 04701 04702 04708 04709 05772 05773 05774; do f=$(find /home/opc/lastwar-lua -type f -name "$n.luac" | head -1); test -n "$f" || continue; echo FILE:$f; strings "$f" | head -320; done
+'@
+    lua_alliance_rank_command = "grep -aREi 'alliance[._].*rank|rank[._].*alliance|AllianceRankListMessage|ParseAllianceRankData' /home/opc/lastwar-lua/extracted | head -300"
+    lua_alliance_rank_fields = @'
+for n in 04701 04702 04708 04709 05772 05773 05774; do f=$(find /home/opc/lastwar-lua -type f -name "$n.luac" | head -1); test -n "$f" || continue; echo FILE:$f; strings "$f" | grep -Ei 'alliance|fightpower|member|count|num|leader|server|rank' | head -180; done
+'@
+    client_bundle_checks = @'
+set -eu
+test -s /tmp/doac-dev/incoming/lastwar-client-bundle.zip
+d=$(mktemp -d /tmp/doac-dev/client-check.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+git clone --quiet --depth 1 --branch feature/interactive-continuous-reader https://github.com/mysteryhawk/lastwar-client.git "$d"
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d"
+cd "$d"
+bad=$(/home/opc/.local/lib/go1.27.2/bin/gofmt -l internal/analytics/types.go internal/analytics/parse.go internal/analytics/analytics_test.go)
+test -z "$bad"
+/home/opc/.local/bin/go test ./...
+/home/opc/.local/bin/go vet ./...
+'@
     dashboard_status = 'systemctl --user is-active doac-dashboard.service; systemctl --user is-active doac-dashboard-tunnel.service; systemctl --user --no-pager --full status doac-dashboard.service doac-dashboard-tunnel.service | head -160'
     vs_status = @'
 systemctl --user list-timers --all --no-pager | grep -E 'doac-(thp|base|vs)' || true; systemctl --user is-active doac-thp-mvp.service doac-base-level.service doac-thp-benchmark.service 2>/dev/null || true; python3 -c "import sqlite3; db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True); [print('|'.join(str(x) for x in row)) for row in db.execute(\"select metric,status,count(*),max(collected_at) from analytics_snapshots where metric in ('vs_daily','vs_weekly') group by metric,status order by metric,status\")]"

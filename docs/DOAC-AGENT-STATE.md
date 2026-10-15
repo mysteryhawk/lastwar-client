@@ -842,3 +842,31 @@ covering relevant timers/services and VS snapshot counts without member identiti
 secrets. Immediate next action is to inspect the first unattended Friday result and
 confirm day 5 appears under the same period; protocol work then returns to verified
 season kill/conquest/exploration mappings.
+
+## Alliance overview protocol support prepared (2026-10-15)
+
+Static inspection of the version-matched VM Lua confirms the alliance-power list uses
+the read-only `alliance.rank` command. `AllianceRankListMessage` sends only
+`{ismerge=<integer>}`, the response collection is `serverRanking`, and
+`AllianceRankData` maps `alliancename`, `abbr`, `fightpower`, leader, rank and server
+fields. There is no target-server parameter in the observed request. The existing
+server-1723 session can therefore support a bounded DoAC validation, but it must not be
+claimed to return server-1724 alliance totals without separate legitimate routing or a
+session whose source scope is 1724.
+
+The normal `rank.get` player rows also expose `alliancename` and `abbr`. The Go allowlist
+parser now retains these two labels in exported records, still keyed by player UID and
+without retaining arbitrary payload fields. This lets a refreshed server-1724 THP/power
+capture replace opaque alliance IDs in the scouting UI. It does not make partial player
+sums authoritative alliance totals. Synthetic coverage verifies both fields on the
+live-observed type-13 shape.
+
+The changed files passed `gofmt`, the full Go suite and `go vet ./...` in a disposable VM
+clone using the permanent Go 1.27.2 toolchain. The first gate correctly exposed that the
+installed production source tree was older than the feature branch; the final gate
+cloned the current feature branch into `/tmp`, overlaid only the reviewed files, and
+removed the checkout afterwards. No client build, live request or deployment occurred.
+The dashboard implementation and its 74 Python tests pass locally. Immediate next action
+is to commit/push this parser milestone. A separate, specialised alliance-ranking export
+contract should be implemented before issuing `alliance.rank`; do not overload the
+player-UID snapshot contract with alliance entities.

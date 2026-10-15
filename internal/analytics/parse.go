@@ -162,7 +162,16 @@ func ParseSnapshot(s *Snapshot, q Query, p *sfs.SFSObject) error {
 				continue
 			}
 		}
-		r := Record{UID: uid, Name: o.GetString("name"), AllianceID: aid}
+		allianceName := o.GetString("alliancename")
+		if allianceName == "" {
+			allianceName = o.GetString("allianceName")
+		}
+		allianceAbbr := o.GetString("abbr")
+		if allianceAbbr == "" {
+			allianceAbbr = o.GetString("allianceAbbr")
+		}
+		r := Record{UID: uid, Name: o.GetString("name"), AllianceID: aid,
+			AllianceName: allianceName, AllianceAbbr: allianceAbbr}
 		if q.Roster {
 			if alias := o.GetString("playerName"); alias != "" {
 				r.Name = alias

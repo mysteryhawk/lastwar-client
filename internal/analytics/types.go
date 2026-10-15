@@ -36,12 +36,14 @@ type Snapshot struct {
 }
 
 type Record struct {
-	UID        string `json:"uid"`
-	Name       string `json:"name,omitempty"`
-	AllianceID string `json:"alliance_id,omitempty"`
-	ServerID   int32  `json:"server_id,omitempty"`
-	Rank       *int64 `json:"rank,omitempty"`
-	Value      *int64 `json:"value,omitempty"`
+	UID          string `json:"uid"`
+	Name         string `json:"name,omitempty"`
+	AllianceID   string `json:"alliance_id,omitempty"`
+	AllianceName string `json:"alliance_name,omitempty"`
+	AllianceAbbr string `json:"alliance_abbr,omitempty"`
+	ServerID     int32  `json:"server_id,omitempty"`
+	Rank         *int64 `json:"rank,omitempty"`
+	Value        *int64 `json:"value,omitempty"`
 }
 
 type Query struct {
