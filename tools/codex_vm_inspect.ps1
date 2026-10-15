@@ -24,6 +24,9 @@ $commands = @{
     lua_season_index = "grep -Ei 'season.*trend|season.*contribution|devotes|camp\.battle|conquest|explor|kill.*rank' /home/opc/lastwar-lua/matches.tsv /home/opc/lastwar-lua/modules.tsv | head -240"
     lua_layout = "find /home/opc/lastwar-lua -maxdepth 2 -type d -print | sort | head -100; find /home/opc/lastwar-lua -maxdepth 3 -type f \( -name '00401*' -o -name '01748*' -o -name '02786*' -o -name '02963*' \) -print | head -80"
     dashboard_status = 'systemctl --user is-active doac-dashboard.service; systemctl --user is-active doac-dashboard-tunnel.service; systemctl --user --no-pager --full status doac-dashboard.service doac-dashboard-tunnel.service | head -160'
+    vs_status = @'
+systemctl --user list-timers --all --no-pager | grep -E 'doac-(thp|base|vs)' || true; systemctl --user is-active doac-thp-mvp.service doac-base-level.service doac-thp-benchmark.service 2>/dev/null || true; python3 -c "import sqlite3; db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True); [print('|'.join(str(x) for x in row)) for row in db.execute(\"select metric,status,count(*),max(collected_at) from analytics_snapshots where metric in ('vs_daily','vs_weekly') group by metric,status order by metric,status\")]"
+'@
     tunnel_url = "grep -Eo 'https://[A-Za-z0-9.-]+\.trycloudflare\.com' /home/opc/doac-private/dashboard-tunnel.log | tail -1"
 }
 $operation = [string]$manifest.operation

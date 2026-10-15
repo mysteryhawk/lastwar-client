@@ -820,3 +820,25 @@ database, capture or private configuration was changed. Gunicorn and the Quick T
 are active; the current tunnel URL is recorded in the dashboard agent-state document.
 The next client-side protocol action remains static tracing of the unverified season
 kill/conquest/exploration leaderboard sources before any bounded live request.
+
+## Dashboard daily VS deployment checkpoint (2026-10-15)
+
+Dashboard commit `bc8594c` added the missing scheduled VS history pipeline. One existing
+authenticated server-1723 session successfully executed the already-supported read-only
+`al.battle.rank.info` queries for type 0 days 1–4 and type 1 weekly. Production imported
+100 UID-keyed rows for every daily query and 100 weekly rows under the shared explicit
+`game-week:2026-10-12` period. No authentication rejection, warning, rate limit or
+session displacement was observed, and no retry was made.
+
+The dashboard timer is active for one 04:55 UTC attempt each day, outside the bounded
+THP and benchmark windows. The UI now shows current daily columns, the distinct weekly
+total and weekly-total-per-elapsed-day (four on Thursday); missing days remain unknown.
+The staged VM gate passed 44 dashboard tool tests and 28 Flask tests. The client binary
+was not rebuilt or replaced because its VS query/export implementation was already
+deployed and sufficient.
+
+The constrained VM inspector now has a hard-coded aggregate-only `vs_status` operation
+covering relevant timers/services and VS snapshot counts without member identities or
+secrets. Immediate next action is to inspect the first unattended Friday result and
+confirm day 5 appears under the same period; protocol work then returns to verified
+season kill/conquest/exploration mappings.
