@@ -785,3 +785,29 @@ server-1724 captures imported into production as 200 THP, 200 ordinary-power and
 observed opponent-roster rows; all remain incomplete and no identities were printed.
 Dashboard and Quick Tunnel services are active. This did not deploy a new game client,
 start a game session or issue any game request.
+
+## Constrained recurring-operation permission (2026-10-15)
+
+Repeated SSH prompts recurred because each changed PowerShell command was evaluated as a
+new exact rule. The same approved no-argument dispatcher now supports `inspect`, backed
+by `tools/codex_vm_inspect.ps1`. Its ignored manifest selects only five hard-coded
+read-only operations: resource health, season-Lua index, Lua layout, dashboard/tunnel
+service status and current tunnel URL. It accepts no caller arguments, remote command
+text or paths and retains strict host-key verification.
+
+Codex 0.160.0 `execpolicy check` confirms the exact dispatcher invocation is allowed;
+a direct SSH command that would create a remote file matches no rule and was not
+executed. The allowed Lua-layout inspection completed through the helper. The direct SSH
+commands used immediately before this change remain redundant exact historical rules;
+do not create more of them.
+
+`tools/codex_publish.ps1` now also supports constrained `commit_push`. It validates the
+fixed repository, remote and feature branch, one-line commit message, and 1..100 existing
+relative files. It rejects sensitive paths/extensions and any staged file outside the
+manifest, commits only listed files and performs a normal non-force push. Existing fixed
+push and draft-PR-update actions remain unchanged; default branches, arbitrary PRs and
+force pushes stay outside the permission.
+
+Immediate permission-maintenance action: use only `tools/codex_doac_operation.ps1` for
+these recurring operations. Add a reviewed hard-coded operation rather than broadening
+the allow rule to PowerShell, SSH, SCP, Git or GitHub.

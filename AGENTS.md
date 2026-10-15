@@ -67,6 +67,15 @@ A tool approval prompt is distinct from owner permission. Do not repeatedly ask 
 action authorised here, bypass rejected approvals, disable the sandbox or create broad
 allow rules for SSH, shells, interpreters or arbitrary scripts.
 
+For recurring VM inspection, artefact transfer, feature-branch publication and draft-PR
+updates, use the fixed no-argument `tools/codex_doac_operation.ps1` entry point with its
+ignored, schema-validated manifests. Do not substitute changing direct SSH/SCP/Git/GitHub
+commands, because exact command rules will prompt again. The dispatcher may select only
+reviewed hard-coded read-only VM checks, bounded transfers to `/tmp/doac-dev/incoming/`,
+explicit safe-file commits/pushes to the two fixed feature branches, or draft PR #1 body
+updates. It must never accept caller-provided remote commands, production destinations,
+force pushes, default-branch publication, sensitive file patterns or arbitrary paths.
+
 Interrupt the owner only when crossing these boundaries, essential access is missing, a
 choice has material cost/security/account/data/production implications, or meaningful
 progress is blocked. Prepare the safe work first and state the concrete action, risk and
