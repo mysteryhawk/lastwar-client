@@ -39,10 +39,13 @@ d=$(mktemp -d /tmp/doac-dev/client-check.XXXXXX)
 trap 'rm -rf "$d"' EXIT
 git clone --quiet --depth 1 --branch feature/interactive-continuous-reader https://github.com/mysteryhawk/lastwar-client.git "$d"
 unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d"
+if test -s "$d/.codex-transfer/artifacts/alliance-contract.zip"; then
+  unzip -oq "$d/.codex-transfer/artifacts/alliance-contract.zip" -d "$d"
+fi
 cd "$d"
 bad=$(/home/opc/.local/lib/go1.27.2/bin/gofmt -l internal/analytics/types.go internal/analytics/parse.go internal/analytics/analytics_test.go)
 test -z "$bad"
-/home/opc/.local/bin/go test ./...
+/home/opc/.local/bin/go test -count=1 ./...
 /home/opc/.local/bin/go vet ./...
 '@
     dashboard_status = 'systemctl --user is-active doac-dashboard.service; systemctl --user is-active doac-dashboard-tunnel.service; systemctl --user --no-pager --full status doac-dashboard.service doac-dashboard-tunnel.service | head -160'

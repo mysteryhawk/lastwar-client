@@ -42,6 +42,7 @@ Supported query kinds:
 | `vs_weekly` | none | type 1; no day |
 | `vs_season` | none | type 2; no day |
 | `desert_thp` | none | implicit logged-in alliance; Desert Storm `users[].heroPower`; no paging |
+| `alliance_power` | `ismerge` 0 or 1 | same-server `alliance.rank`; schema-v2 alliance entities with `fightpower` |
 | `season_power` | `rank_type`: 2 or 4 | page_size 100; individual seasonal `score` |
 | `season_devotes` | `event_id`, active-event `sub_type` | start 1,end -1; no guessed event ID; `score` |
 | `svs` | none | Candidate cross-war personal ranking; confirm event applicability live |
@@ -69,6 +70,12 @@ One JSON object per query, schema_version 1:
 - Status: ok, empty, partial, missing_payload, server_error, transport_error. Missing fields and malformed numbers never become fabricated zero scores.
 - `validation=response_received` means the client received a correlated response. It does not certify DoAC access, complete ranking coverage or live validation by the developer.
 - `payload_present`, `rejected_rows`, `complete_roster`; records contain UID strings, optional names/alliance/server, optional rank, and signed 64-bit integer values.
+
+`alliance_power` is deliberately exported as schema version 2 instead. Its `alliances`
+array is keyed by `alliance_id` and allowlists name, abbreviation, leader, server, rank
+and `total_power`; it contains no player `uid` field. The collector refuses to send this
+command unless its observed source server exactly matches the configured target because
+the static request has no target-server dimension. `complete_cohort` remains false.
 
 Only normalised allowlisted fields are exported. Raw init/login/server responses, session tokens and credentials are never exported. JSON numbers retain exact integer values in Python/SQLite; consumers in JavaScript must preserve 64-bit score precision themselves. UIDs always remain strings.
 

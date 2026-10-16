@@ -28,6 +28,7 @@ type QueryConfig struct {
 	Day       int32  `json:"day,omitempty"`
 	RankType  int32  `json:"rank_type,omitempty"`
 	Global    int32  `json:"global,omitempty"`
+	IsMerge   int32  `json:"ismerge,omitempty"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -116,6 +117,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q, err = RankQuery(THPRankingType, v.Global, c.TargetServer, "THP", "heroPower", v.Period)
 		case "player_power":
 			q, err = RankQuery(PlayerPowerRankingType, v.Global, c.TargetServer, "player_power", "power", v.Period)
+		case "alliance_power":
+			q, err = AllianceRankQuery(v.IsMerge, v.Period)
 		case "desert_thp":
 			q = DesertTHPQuery(v.Period)
 		default:

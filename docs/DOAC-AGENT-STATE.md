@@ -882,3 +882,26 @@ No updated game client was deployed and no game request was made. Opponent allia
 will remain IDs until a future single bounded server-1724 rank refresh uses the new parser.
 Immediate client action remains the specialised `alliance.rank` entity contract; current
 static evidence supports server-1723 scope only.
+
+## Specialised alliance-ranking contract implemented (2026-10-16)
+
+The missing alliance-total backend is now implemented without weakening the player UID
+contract. Analytics kind `alliance_power` sends exactly read-only
+`alliance.rank {ismerge:Int}` and exports schema version 2 with an `alliances` array keyed
+by alliance ID. Allowlisted fields are name, abbreviation, leader, server, rank and exact
+`fightpower` as `total_power`; no field is called UID. `complete_cohort` remains false.
+
+Because the request has no target server, `CollectAllianceRanking` requires the observed
+source server to equal the configured target and returns before `Requester.Request` on a
+mismatch. Synthetic tests cover the wire tag, entity separation, exact power, server-row
+scope, invalid merge value and the pre-send cross-server guard. Newly introduced ranking
+dimension keys were explicitly classified as non-sensitive wire selectors. The VM gate
+now runs `go test -count=1` so the repository-wide literal-key scanner cannot be hidden by
+Go's package cache.
+
+Automated verification: formatting, the uncached full Go suite and vet pass in a
+disposable VM clone. No live request or client deployment occurred. Immediate next
+action: commit/push the paired client/dashboard schema milestone. Make at most one
+bounded server-1723 live collection when account availability is appropriate; stop on
+authentication rejection. Server-1724 alliance totals remain unavailable because no
+legitimate target routing is known.

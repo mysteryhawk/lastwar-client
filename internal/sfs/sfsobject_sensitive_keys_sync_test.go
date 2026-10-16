@@ -74,12 +74,17 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"country":               true,
 	"deeplinkParams":        true,
 	"delete_account_status": true,
+	"end":                   true, // Read-only season leaderboard range bound.
+	"event_id":              true, // Public season event selector, not a secret identity.
 	"firstCmd":              true,
 	"forbidden_froce_merge": true,
 	"fromCountry":           true,
 	"gmLogin":               true,
 	"google_available":      true,
+	"global":                true, // Public ranking scope selector.
+	"grabTimes":             true, // Meteorite round index.
 	"isAll":                 true,
+	"ismerge":               true, // Local/merged alliance-ranking scope selector.
 	"isUseLz4":              true,
 	"KCPMode":               true,
 	"lang":                  true,
@@ -91,16 +96,20 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"p":                     true,
 	"packageName":           true,
 	"packageSign":           true,
+	"pageSize":              true, // Public season ranking page size.
 	"pf":                    true,
 	"pfId":                  true,
 	"platform":              true,
 	"psh":                   true,
 	"r":                     true,
+	"rank_type":             true, // Public season ranking type.
 	"referrer":              true,
 	"resVersion":            true,
 	"scienceId":             true,
 	"SecurityCode":          true,
 	"serverId":              true,
+	"start":                 true, // Read-only season leaderboard range bound.
+	"startRank":             true, // Read-only meteorite ranking range bound.
 	"suggestCountry":        true,
 	"time":                  true,
 	"timeoffset":            true,

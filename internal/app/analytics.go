@@ -51,6 +51,22 @@ func runAnalytics(conn *session.GameConn, cfg *analytics.Config, sourceServer in
 			slog.Info("meteorite context", "status", snapshot.Status, "stage", snapshot.Parameters["stage"], "grabTimes", snapshot.Parameters["grabTimes"], "roundQueries", len(rounds))
 			continue
 		}
+		if q.AllianceRanking {
+			snapshot, collectErr := collector.CollectAllianceRanking(ctx, q)
+			if collectErr != nil {
+				failures = append(failures, fmt.Errorf("%s: %w", q.Metric, collectErr))
+			}
+			if exportErr := analytics.ExportAllianceJSONL(f, snapshot); exportErr != nil {
+				return exportErr
+			}
+			if snapshot.Status != "ok" && snapshot.Status != "empty" && collectErr == nil {
+				failures = append(failures, fmt.Errorf("%s: %s", q.Metric, snapshot.Status))
+			}
+			slog.Info("alliance analytics snapshot", "metric", q.Metric, "status", snapshot.Status,
+				"rows", len(snapshot.Alliances), "rejected", snapshot.RejectedRows,
+				"sourceServer", sourceServer)
+			continue
+		}
 		snapshot, err := collector.Collect(ctx, q)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", q.Metric, err))

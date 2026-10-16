@@ -40,6 +40,16 @@ func (r staticRequester) Request(context.Context, string, *sfs.SFSObject) (*sess
 	return &session.ExtensionMessage{Params: r.params}, nil
 }
 
+type countingRequester struct {
+	params *sfs.SFSObject
+	calls  int
+}
+
+func (r *countingRequester) Request(context.Context, string, *sfs.SFSObject) (*session.ExtensionMessage, error) {
+	r.calls++
+	return &session.ExtensionMessage{Params: r.params}, nil
+}
+
 func TestMeteoriteAutoDiscoveryUsesLiveStageAndRounds(t *testing.T) {
 	p := sfs.NewSFSObject()
 	p.PutInt("stage", 4)
@@ -111,6 +121,55 @@ func TestQueriesHaveLuaWireTags(t *testing.T) {
 	battle := SeasonFactionBattleScoreQuery("season-battle:test")
 	if battle.Command != "lw.camp.battle.user.score.rank" || battle.Payload != "list" || battle.ValueField != "score" {
 		t.Fatal("wrong season battle score query")
+	}
+	alliance, e := AllianceRankQuery(0, "day:test")
+	if e != nil || alliance.Command != "alliance.rank" || !alliance.AllianceRanking ||
+		alliance.Params.GetInt("ismerge") != 0 {
+		t.Fatal("wrong alliance power query")
+	}
+	if value, _ := alliance.Params.Get("ismerge"); value.Type != sfs.SFSInt {
+		t.Fatal("alliance ismerge not Int")
+	}
+	if _, e := AllianceRankQuery(2, "day:test"); e == nil {
+		t.Fatal("invalid alliance merge scope accepted")
+	}
+}
+
+func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T) {
+	q, err := AllianceRankQuery(0, "game-day:2026-10-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := sfs.NewSFSObject()
+	row.PutUtfString("allianceId", "alliance-A")
+	row.PutUtfString("alliancename", "Alliance Alpha")
+	row.PutUtfString("abbr", "ALP")
+	row.PutUtfString("leader", "Leader")
+	row.PutInt("serverId", 1723)
+	row.PutInt("rank", 2)
+	row.PutLong("fightpower", 123456789)
+	requester := &countingRequester{params: payload("serverRanking", row)}
+	now := time.Date(2026, 10, 16, 2, 0, 0, 0, time.UTC)
+	collector := Collector{Client: requester, SourceServer: 1723, TargetServer: 1723,
+		AllianceID: "alliance-A", Now: func() time.Time { return now }}
+	snapshot, err := collector.CollectAllianceRanking(context.Background(), q)
+	if err != nil || snapshot.SchemaVersion != 2 || snapshot.Status != "ok" ||
+		len(snapshot.Alliances) != 1 || snapshot.Alliances[0].AllianceID != "alliance-A" ||
+		snapshot.Alliances[0].TotalPower != 123456789 || snapshot.CompleteCohort {
+		t.Fatalf("alliance snapshot=%+v err=%v", snapshot, err)
+	}
+	var exported bytes.Buffer
+	if err := ExportAllianceJSONL(&exported, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(exported.String(), `"uid"`) || !strings.Contains(exported.String(), `"total_power"`) {
+		t.Fatalf("alliance export mixed with player contract: %s", exported.String())
+	}
+	requester.calls = 0
+	collector.SourceServer = 1456
+	rejected, err := collector.CollectAllianceRanking(context.Background(), q)
+	if !errors.Is(err, errInvalidQuery) || requester.calls != 0 || rejected.Status != "transport_error" {
+		t.Fatal("cross-server alliance request was not stopped before send")
 	}
 }
 
@@ -324,6 +383,8 @@ func TestAnalyticsConfigRejectsUnknownOperations(t *testing.T) {
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"vs_daily","period":"p","day":7}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p","grab_times":0}]}`, true},
 		{`{"target_server":1724,"alliance_id":"synthetic","output":"s","queries":[{"kind":"player_power","period":"p"}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"alliance_power","period":"p","ismerge":0}]}`, true},
+		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"alliance_power","period":"p","ismerge":2}]}`, false},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"season_battle_score","period":"p"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"desert_thp","period":"p"}]}`, true},
 		{`{"target_server":1723,"alliance_id":"synthetic","output":"s","queries":[{"kind":"meteorite","period":"p"}]}`, false},

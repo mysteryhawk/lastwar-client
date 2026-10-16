@@ -160,9 +160,11 @@ power; summing incomplete player-power observations is not equivalent.
 
 No target `serverId` appears in the request shape. A request on the current server-1723
 session can therefore be evaluated only for that session's ranking scope. Static evidence
-does not authorise or prove arbitrary-server alliance-rank access for server 1724. A
-specialised alliance-entity export is still required before a bounded live call; player
-UID records must not be repurposed as alliance records.
+does not authorise or prove arbitrary-server alliance-rank access for server 1724. The
+implemented schema-v2 exporter keeps alliance IDs and `fightpower` in a specialised
+alliance-entity contract; player UID records are not repurposed. It rejects source/target
+server mismatch before sending any request. Live payload and coverage validation remain
+pending.
 
 The existing `PlayerRankData` path also maps `alliancename` and `abbr`. These two labels
 are now allowlisted on normal `rank.get` player records so future scoped scouting captures

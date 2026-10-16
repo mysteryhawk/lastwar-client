@@ -54,6 +54,20 @@ type Query struct {
 	Day                                 int32
 	Roster                              bool
 	FilterAlliance                      bool
+	AllianceRanking                     bool
+}
+
+// AllianceRankQuery follows AllianceRankListMessage. Static Lua evidence shows
+// only ismerge:Int; there is no target-server dimension on this endpoint.
+func AllianceRankQuery(isMerge int32, period string) (Query, error) {
+	if (isMerge != 0 && isMerge != 1) || period == "" {
+		return Query{}, errInvalidQuery
+	}
+	p := sfs.NewSFSObject()
+	p.PutInt("ismerge", isMerge)
+	return Query{Command: "alliance.rank", Params: p, Metric: "alliance_power",
+		Period: period, Payload: "serverRanking", ValueField: "fightpower",
+		AllianceRanking: true}, nil
 }
 
 // MeteoriteAutoQuery first reads the event's current schedule/stage. The app
