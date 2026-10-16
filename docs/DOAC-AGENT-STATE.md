@@ -943,3 +943,24 @@ Stop live testing here. Immediate next action is an offline bounded row-shape di
 that records only allowlisted field names, SFS type tags and collection sizes—never
 values—then one later reviewed request. Do not weaken identity semantics, fabricate IDs,
 or import the rejected rows.
+
+## Value-free alliance row diagnostic prepared (2026-10-16)
+
+Offline review confirmed that the available Lua strings do not prove an alliance-ID
+field or map-key meaning. A higher-reasoning protocol review also confirmed that the
+dispatcher correctly unwraps the extension envelope and correlates the response by
+command and `_id`; adding another generic envelope unwrap would be speculative.
+
+The alliance snapshot now includes a bounded diagnostic only when needed. It samples at
+most eight rows, reports the main collection type/count, `selfRanking` wire type,
+allowlisted row field names with SFS wire-type tags, aggregate unknown-field counts and
+explicit rejection-reason counts. It emits no scalar values, string lengths, arbitrary
+field names, object/map keys or nested contents. Sensitive top-level field names are
+excluded. Tests use distinctive synthetic name, power, unknown-field and token values
+and prove none reaches JSON; a nine-row test proves the eight-row cap and truncation.
+
+Automated verification: the uncached full Go suite and `go vet ./...` pass in disposable
+VM space against the exact working bundle. No additional live request or production
+deployment occurred in this milestone. Next action is one fixed, reviewable diagnostic
+deployment and one bounded read-only server-1723 request with no retry. Inspect only the
+sanitised shape summary; on authentication rejection or warning, stop immediately.

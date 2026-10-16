@@ -187,7 +187,8 @@ func TestAllianceRankingMissingPayloadRecordsFieldNamesOnly(t *testing.T) {
 	if err := ParseAllianceSnapshot(&s, q, p); err != nil {
 		t.Fatal(err)
 	}
-	if s.Status != "missing_payload" || !reflect.DeepEqual(s.ResponseFields, []string{"_id", "serverRanking"}) {
+	if s.Status != "missing_payload" || s.ResponseOtherFields != 1 ||
+		!reflect.DeepEqual(s.ResponseFields, []string{"_id", "serverRanking"}) {
 		t.Fatalf("unexpected diagnostic: %+v", s)
 	}
 	exported := new(bytes.Buffer)
@@ -196,6 +197,61 @@ func TestAllianceRankingMissingPayloadRecordsFieldNamesOnly(t *testing.T) {
 	}
 	if strings.Contains(exported.String(), "accessToken") || strings.Contains(exported.String(), "SECRET") {
 		t.Fatalf("diagnostic exported values: %s", exported.String())
+	}
+}
+
+func TestAllianceRankingRejectedRowShapeIsBoundedAndValueFree(t *testing.T) {
+	q, err := AllianceRankQuery(0, "game-day:2026-10-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := sfs.NewSFSObject()
+	row.PutUtfString("name", "VISIBLE-NAME-SENTINEL")
+	row.PutLong("fightpower", 987654321)
+	row.PutUtfString("mystery", "MYSTERY-VALUE-SENTINEL")
+	row.PutUtfString("accessToken", "SECRET-TOKEN-SENTINEL")
+	s := AllianceSnapshot{}
+	p := payload("allianceRanking", row)
+	p.PutInt("selfRanking", 7)
+	if err := ParseAllianceSnapshot(&s, q, p); err != nil {
+		t.Fatal(err)
+	}
+	wantFields := []string{"fightpower:long", "name:utf_string"}
+	if s.Status != "partial" || s.RejectedRows != 1 ||
+		s.RejectionReasons["missing_alliance_id"] != 1 || s.RowShape == nil ||
+		s.SelfRankingType != "int" || s.RowShape.CollectionType != "sfs_array" ||
+		s.RowShape.ItemCount != 1 || s.RowShape.RowsExamined != 1 ||
+		s.RowShape.ItemTypes["sfs_object"] != 1 || len(s.RowShape.Shapes) != 1 ||
+		s.RowShape.Shapes[0].Count != 1 || s.RowShape.Shapes[0].OtherFields != 2 ||
+		!reflect.DeepEqual(s.RowShape.Shapes[0].Fields, wantFields) {
+		t.Fatalf("unexpected row diagnostic: %+v", s)
+	}
+	exported := new(bytes.Buffer)
+	if err := ExportAllianceJSONL(exported, s); err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"VISIBLE-NAME-SENTINEL", "987654321", "mystery",
+		"MYSTERY-VALUE-SENTINEL", "accessToken", "SECRET-TOKEN-SENTINEL"} {
+		if strings.Contains(exported.String(), forbidden) {
+			t.Fatalf("diagnostic leaked %q: %s", forbidden, exported.String())
+		}
+	}
+}
+
+func TestAllianceRankingRowShapeCapsSamples(t *testing.T) {
+	q, _ := AllianceRankQuery(0, "game-day:2026-10-16")
+	rows := make([]*sfs.SFSObject, 9)
+	for i := range rows {
+		rows[i] = sfs.NewSFSObject()
+		rows[i].PutLong("fightpower", int64(i+1))
+	}
+	s := AllianceSnapshot{}
+	if err := ParseAllianceSnapshot(&s, q, payload("allianceRanking", rows...)); err != nil {
+		t.Fatal(err)
+	}
+	if s.RowShape == nil || s.RowShape.ItemCount != 9 || s.RowShape.RowsExamined != 8 ||
+		!s.RowShape.Truncated || s.RejectedRows != 9 {
+		t.Fatalf("unbounded row diagnostic: %+v", s)
 	}
 }
 

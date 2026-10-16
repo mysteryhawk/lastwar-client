@@ -10,6 +10,7 @@ import (
 	"lastwar-client/internal/sfs"
 	"math"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -32,7 +33,29 @@ type AllianceSnapshot struct {
 	Validation        string            `json:"validation"`
 	RejectedRows      int               `json:"rejected_rows"`
 	ResponseFields    []string          `json:"response_fields,omitempty"`
+	ResponseOtherFields int              `json:"response_other_fields,omitempty"`
+	SelfRankingType    string            `json:"self_ranking_type,omitempty"`
+	RejectionReasons  map[string]int    `json:"rejection_reasons,omitempty"`
+	RowShape          *AllianceRowShape `json:"row_shape,omitempty"`
 	Alliances         []AllianceRecord  `json:"alliances"`
+}
+
+// AllianceRowShape is a bounded, value-free live-protocol diagnostic. It emits
+// only reviewed field names, SFS wire types and aggregate counts. It must never
+// contain scalar values, arbitrary field names or nested payload contents.
+type AllianceRowShape struct {
+	CollectionType string                    `json:"collection_type"`
+	ItemCount      int                       `json:"item_count"`
+	RowsExamined   int                       `json:"rows_examined"`
+	ItemTypes      map[string]int            `json:"item_types"`
+	Shapes         []AllianceRowShapeVariant `json:"shapes"`
+	Truncated      bool                      `json:"truncated,omitempty"`
+}
+
+type AllianceRowShapeVariant struct {
+	Fields      []string `json:"fields"`
+	OtherFields int      `json:"other_fields,omitempty"`
+	Count       int      `json:"count"`
 }
 
 type AllianceRecord struct {
@@ -54,6 +77,113 @@ func allianceIdentifier(o *sfs.SFSObject) string {
 	return ""
 }
 
+var allianceShapeFields = map[string]bool{
+	"abbr": true, "aid": true, "allianceId": true,
+	"allianceName": true, "allianceid": true, "alliancename": true,
+	"armyKill": true, "country": true, "fightpower": true, "icon": true,
+	"id": true, "leader": true, "name": true, "rank": true, "score": true,
+	"serverId": true, "srcServer": true,
+}
+
+var allianceResponseFields = map[string]bool{
+	"_id": true, "_time": true, "allianceRanking": true, "errorCode": true,
+	"ismerge": true, "selfRanking": true, "serverRanking": true, "success": true,
+}
+
+func sfsTypeName(tag byte) string {
+	switch tag {
+	case sfs.SFSNull:
+		return "null"
+	case sfs.SFSBool:
+		return "bool"
+	case 2:
+		return "byte"
+	case 3:
+		return "short"
+	case sfs.SFSInt:
+		return "int"
+	case sfs.SFSLong:
+		return "long"
+	case 6:
+		return "float"
+	case sfs.SFSDouble:
+		return "double"
+	case sfs.SFSUtfString:
+		return "utf_string"
+	case 9, 10, 11, 12, 13, 14, 15, 16:
+		return "primitive_array"
+	case 17:
+		return "sfs_array"
+	case sfs.SFSObjectType:
+		return "sfs_object"
+	case 19:
+		return "class"
+	case sfs.SFSText:
+		return "text"
+	default:
+		return "unknown"
+	}
+}
+
+func allianceRowShape(raw sfs.SFSValue, items []sfs.SFSValue) *AllianceRowShape {
+	const maxRows, maxFields, maxVariants = 8, 17, 8
+	d := &AllianceRowShape{CollectionType: sfsTypeName(raw.Type), ItemCount: len(items),
+		ItemTypes: map[string]int{}, Shapes: []AllianceRowShapeVariant{}}
+	variants := map[string]AllianceRowShapeVariant{}
+	limit := len(items)
+	if limit > maxRows {
+		limit, d.Truncated = maxRows, true
+	}
+	d.RowsExamined = limit
+	for _, item := range items[:limit] {
+		typeName := sfsTypeName(item.Type)
+		d.ItemTypes[typeName]++
+		row, ok := item.Val.(*sfs.SFSObject)
+		if !ok || row == nil {
+			continue
+		}
+		fields := make([]string, 0, len(row.Keys()))
+		other := 0
+		for _, key := range row.Keys() {
+			if sfs.IsSensitiveSFSKey(key) {
+				other++
+				continue
+			}
+			value, _ := row.Get(key)
+			if !allianceShapeFields[key] || len(fields) >= maxFields {
+				other++
+				continue
+			}
+			fields = append(fields, key+":"+sfsTypeName(value.Type))
+		}
+		sort.Strings(fields)
+		signature := strings.Join(fields, "|") + fmt.Sprintf("|other=%d", other)
+		variant := variants[signature]
+		variant.Fields, variant.OtherFields, variant.Count = fields, other, variant.Count+1
+		variants[signature] = variant
+	}
+	keys := make([]string, 0, len(variants))
+	for key := range variants {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	if len(keys) > maxVariants {
+		keys, d.Truncated = keys[:maxVariants], true
+	}
+	for _, key := range keys {
+		d.Shapes = append(d.Shapes, variants[key])
+	}
+	return d
+}
+
+func rejectAlliance(s *AllianceSnapshot, reason string) {
+	if s.RejectionReasons == nil {
+		s.RejectionReasons = map[string]int{}
+	}
+	s.RejectedRows++
+	s.RejectionReasons[reason]++
+}
+
 func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error {
 	if !q.AllianceRanking || q.Command != "alliance.rank" || q.Payload != "allianceRanking" ||
 		q.ValueField != "fightpower" {
@@ -62,6 +192,9 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 	if p == nil {
 		s.Status = "missing_payload"
 		return nil
+	}
+	if selfRanking, present := p.Get("selfRanking"); present {
+		s.SelfRankingType = sfsTypeName(selfRanking.Type)
 	}
 	if raw, present := p.Get("errorCode"); present {
 		if _, ok := raw.Val.(string); !ok {
@@ -90,8 +223,10 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 	raw, present := p.Get(q.Payload)
 	if !present {
 		for _, key := range p.Keys() {
-			if !sfs.IsSensitiveSFSKey(key) {
+			if !sfs.IsSensitiveSFSKey(key) && allianceResponseFields[key] {
 				s.ResponseFields = append(s.ResponseFields, key)
+			} else {
+				s.ResponseOtherFields++
 			}
 		}
 		sort.Strings(s.ResponseFields)
@@ -119,18 +254,31 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 		s.Status = "partial"
 		return fmt.Errorf("%s is not an SFS array/object", q.Payload)
 	}
+	s.RowShape = allianceRowShape(raw, items)
 	s.PayloadPresent = true
 	seen := map[string]bool{}
 	for _, value := range items {
 		row, ok := value.Val.(*sfs.SFSObject)
 		if !ok || row == nil {
-			s.RejectedRows++
+			rejectAlliance(s, "wrong_row_type")
 			continue
 		}
 		allianceID := allianceIdentifier(row)
 		power, powerOK := integer(row, "fightpower")
-		if allianceID == "" || seen[allianceID] || !powerOK || power < 0 {
-			s.RejectedRows++
+		if allianceID == "" {
+			rejectAlliance(s, "missing_alliance_id")
+			continue
+		}
+		if seen[allianceID] {
+			rejectAlliance(s, "duplicate_alliance_id")
+			continue
+		}
+		if !powerOK {
+			rejectAlliance(s, "missing_or_wrong_power_type")
+			continue
+		}
+		if power < 0 {
+			rejectAlliance(s, "negative_power")
 			continue
 		}
 		seen[allianceID] = true
@@ -146,7 +294,7 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 			}
 		}
 		if record.ServerID != 0 && record.ServerID != s.TargetServer {
-			s.RejectedRows++
+			rejectAlliance(s, "server_mismatch")
 			continue
 		}
 		if rank, ok := integer(row, "rank"); ok && rank > 0 {
