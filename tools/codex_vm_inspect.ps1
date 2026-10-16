@@ -105,14 +105,30 @@ d=$(mktemp -d /tmp/doac-dev/alliance-check.XXXXXX)
 trap 'rm -rf "$d"' EXIT
 unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/packages"
 mkdir -p "$d/client"
-unzip -oq "$d/packages/.codex-transfer/artifacts/client-a1522ef.zip" -d "$d/client"
-for path in internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go; do
+unzip -oq "$d/packages/.codex-transfer/artifacts/client-6d9c809.zip" -d "$d/client"
+for path in internal/analytics/alliance.go internal/analytics/analytics_test.go; do
   install -m 0644 "$d/packages/$path" "$d/client/$path"
 done
 cd "$d/client"
 /home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go
 /home/opc/.local/bin/go test -count=1 ./...
 /home/opc/.local/bin/go vet ./...
+'@
+    lua_decompiler_state = @'
+set -eu
+f=$(find /home/opc/lastwar-lua -type f -name '00457.luac' | head -1)
+test -n "$f"
+file "$f"
+xxd -l 48 "$f"
+for tool in luac luadec unluac java python3; do command -v "$tool" || true; done
+find /home/opc/lastwar-lua /home/opc/.local -maxdepth 5 -type f \( -iname '*unluac*' -o -iname '*luadec*' -o -name 'luac' \) -print 2>/dev/null | head -40
+if command -v luac >/dev/null 2>&1; then luac -l -l "$f" | head -260 || true; fi
+'@
+    lua_alliance_rank_decompile = "java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar /home/opc/lastwar-lua/fixed/00457.luac | head -360"
+    lua_alliance_fixed = @'
+set -eu
+find /home/opc/lastwar-lua/fixed /home/opc/lastwar-lua/decompiled -maxdepth 3 -type f \( -name '00457*' -o -iname '*AllianceRankData*' \) -print
+for f in $(find /home/opc/lastwar-lua/decompiled -maxdepth 3 -type f \( -name '00457*' -o -iname '*AllianceRankData*' \) | head -4); do echo FILE:$f; sed -n '1,320p' "$f"; done
 '@
 }
 $operation = [string]$manifest.operation

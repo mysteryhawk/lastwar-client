@@ -69,7 +69,7 @@ type AllianceRecord struct {
 }
 
 func allianceIdentifier(o *sfs.SFSObject) string {
-	for _, key := range []string{"allianceId", "allianceid", "aid", "id"} {
+	for _, key := range []string{"uid", "allianceId", "allianceid", "aid", "id"} {
 		if value := identifier(o, key); value != "" {
 			return value
 		}
@@ -82,7 +82,7 @@ var allianceShapeFields = map[string]bool{
 	"allianceName": true, "allianceid": true, "alliancename": true,
 	"armyKill": true, "country": true, "fightpower": true, "icon": true,
 	"id": true, "leader": true, "name": true, "rank": true, "score": true,
-	"serverId": true, "srcServer": true,
+	"serverId": true, "srcServer": true, "uid": true,
 }
 
 var allianceResponseFields = map[string]bool{
@@ -126,7 +126,7 @@ func sfsTypeName(tag byte) string {
 }
 
 func allianceRowShape(raw sfs.SFSValue, items []sfs.SFSValue) *AllianceRowShape {
-	const maxRows, maxFields, maxVariants = 8, 17, 8
+	const maxRows, maxFields, maxVariants = 8, 18, 8
 	d := &AllianceRowShape{CollectionType: sfsTypeName(raw.Type), ItemCount: len(items),
 		ItemTypes: map[string]int{}, Shapes: []AllianceRowShapeVariant{}}
 	variants := map[string]AllianceRowShapeVariant{}

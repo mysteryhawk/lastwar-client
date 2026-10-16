@@ -142,7 +142,7 @@ func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T
 		t.Fatal(err)
 	}
 	row := sfs.NewSFSObject()
-	row.PutUtfString("allianceId", "alliance-A")
+	row.PutUtfString("uid", "alliance-A")
 	row.PutUtfString("alliancename", "Alliance Alpha")
 	row.PutUtfString("abbr", "ALP")
 	row.PutUtfString("leader", "Leader")

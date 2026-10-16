@@ -964,3 +964,28 @@ VM space against the exact working bundle. No additional live request or product
 deployment occurred in this milestone. Next action is one fixed, reviewable diagnostic
 deployment and one bounded read-only server-1723 request with no retry. Inspect only the
 sanitised shape summary; on authentication rejection or warning, stop immediately.
+
+## Alliance UID semantics recovered (2026-10-16)
+
+The one-use diagnostic deployed commit `6d9c809`, backed up the active collector, refused
+concurrent collector services and made exactly one read-only request. Authentication
+succeeded without warning. The 50-row response had one uniform sampled shape:
+`abbr:Utf`, `alliancename:Utf`, `armyKill:Utf`, `country:Utf`, `fightpower:Long`,
+`icon:Utf`, `leader:Utf`, `srcServer:Int`, plus five deliberately unnamed fields.
+All 50 rejections were solely `missing_alliance_id`; total-power typing was valid.
+`selfRanking` was an Int. The database was not touched.
+
+The VM already contained a fixed version of `00457.luac` and `unluac`. Decompilation of
+`AllianceRankData:ParseData` proves `message.uid` is copied to the alliance entity's
+`uid`. It separately maps the display/stat fields above and assigns rank only through
+`SetRank`. The parser now accepts live `uid` as the primary alliance identifier while
+retaining the documented legacy aliases; it still exports the entity as `alliance_id`,
+never as a player UID. Synthetic coverage now uses the live alias and proves the export
+does not contain a `uid` field.
+
+Automated verification after the alias change: uncached full Go suite and `go vet ./...`
+pass in disposable VM space. No post-fix game request or database import has occurred.
+Immediate next action: commit/push this evidence-backed parser correction, deploy that
+exact commit with a rollback copy, then make one bounded one-shot collection/import. A
+successful snapshot must contain the configured tracked alliance and zero rejected rows;
+otherwise import nothing and stop.

@@ -160,6 +160,13 @@ Version-matched Lua identifies `AllianceRankList` as `alliance.rank`.
 country and `serverId`/`srcServer`. This is the correct source for genuine alliance total
 power; summing incomplete player-power observations is not equivalent.
 
+The fixed Lua 5.3 bytecode was subsequently decompiled with the existing VM `unluac`
+toolchain. `AllianceRankData:ParseData` explicitly maps `message.uid` to the alliance
+entity's `uid`; it also maps `leader`, `abbr`, `alliancename`, `fightpower`, `armyKill`,
+`icon`, `country`, `srcServer`/`serverId` and `score`. This independently proves the live
+row's `uid` is the alliance identifier. Rank is assigned separately by `SetRank`; neither
+rank position nor name is used as identity.
+
 No target `serverId` appears in the request shape. A request on the current server-1723
 session can therefore be evaluated only for that session's ranking scope. Static evidence
 does not authorise or prove arbitrary-server alliance-rank access for server 1724. The
