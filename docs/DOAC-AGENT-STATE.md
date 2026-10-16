@@ -989,3 +989,36 @@ Immediate next action: commit/push this evidence-backed parser correction, deplo
 exact commit with a rollback copy, then make one bounded one-shot collection/import. A
 successful snapshot must contain the configured tracked alliance and zero rejected rows;
 otherwise import nothing and stop.
+
+## Alliance UID fix live-verified and imported (2026-10-16)
+
+Commit `cfdded6` was deployed through a fixed one-use helper after its focused VM gate.
+One read-only source-server-1723 request authenticated successfully and returned 50
+valid alliance entities with zero rejected rows. There was no warning, rate limit,
+authentication rejection or retry. The configured tracked alliance appeared exactly
+once. Live DoAC evidence is name `DOOM And CARNAGE`, abbreviation `DoAC`, and exact
+alliance `fightpower` 15,087,816,279.
+
+The first guarded import stopped with exit 4 even though the payload was clean. This was
+an integration-contract failure: the temporary value-free diagnostic fields were still
+present on a successful schema-v2 export, while the dashboard deliberately rejects
+unknown fields. The retained private capture was not discarded and no second game
+request was made. A one-use offline recovery removed only the five known diagnostic
+top-level fields, revalidated all scope/status/identity/count invariants, backed up the
+database, and transactionally imported the 50 rows.
+
+Successful operational snapshots now clear diagnostic-only metadata before export;
+partial, rejected and missing-payload snapshots retain the bounded diagnostics. The
+uncached full Go suite and `go vet ./...` passed in disposable VM space. The corrected
+collector binary is installed with a private rollback copy; its installation made no
+game request. The live dashboard read model sees one ranking snapshot and 50 alliance
+cards. DoAC resolves to 100 observed participants, 15.09B total power, 150.88M average
+power, 11 members in the verified server THP top 200, and five top-THP players.
+
+The live `alliance.rank` rows do not contain a member-count field or an explicit rank
+field. `AllianceRankData` receives rank through a separate `SetRank` call, and the
+response also supplies `selfRanking:Int`; neither is yet interpreted. Preserve rank and
+opponent member counts as unknown until the list-position/self-ranking semantics and a
+legitimate roster source are proved. Immediate next action is to commit/push the clean
+export fix and trace the Lua list parser that calls `SetRank`, without another live
+authentication attempt.

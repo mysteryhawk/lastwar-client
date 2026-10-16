@@ -166,6 +166,13 @@ func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T
 	if strings.Contains(exported.String(), `"uid"`) || !strings.Contains(exported.String(), `"total_power"`) {
 		t.Fatalf("alliance export mixed with player contract: %s", exported.String())
 	}
+	for _, diagnostic := range []string{`"row_shape"`, `"self_ranking_type"`,
+		`"response_fields"`, `"rejection_reasons"`} {
+		if strings.Contains(exported.String(), diagnostic) {
+			t.Fatalf("successful operational export contains diagnostic field %s: %s",
+				diagnostic, exported.String())
+		}
+	}
 	requester.calls = 0
 	collector.SourceServer = 1456
 	rejected, err := collector.CollectAllianceRanking(context.Background(), q)

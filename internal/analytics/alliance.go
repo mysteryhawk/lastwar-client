@@ -310,6 +310,16 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 		s.Status = "partial"
 	}
 	s.CompleteCohort = false
+	// Shape metadata is an investigation aid for rejected or otherwise incomplete
+	// payloads. A clean operational snapshot must remain inside the stable v2
+	// ingestion contract rather than acquiring diagnostic-only top-level fields.
+	if s.Status == "ok" {
+		s.ResponseFields = nil
+		s.ResponseOtherFields = 0
+		s.SelfRankingType = ""
+		s.RejectionReasons = nil
+		s.RowShape = nil
+	}
 	return nil
 }
 

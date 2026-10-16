@@ -99,6 +99,69 @@ find /home/opc/doac-private -maxdepth 1 -type f -printf '%f\n' | sort | grep -E 
 systemctl --user is-active doac-dashboard.service
 systemctl --user is-active doac-dashboard-tunnel.service
 '@
+    alliance_failed_snapshot_summary = @'
+set -eu
+python3 - <<'PY'
+import glob, json, os
+paths=sorted(glob.glob('/home/opc/doac-private/captures/alliance-power-*.jsonl'))
+if not paths:
+    raise SystemExit('no retained failed alliance snapshot')
+path=paths[-1]
+with open(path,encoding='utf-8') as f:
+    lines=f.read().splitlines()
+if len(lines)!=1:
+    raise SystemExit('unexpected snapshot line count')
+doc=json.loads(lines[0])
+with open('/home/opc/doac-private/alliance-id',encoding='utf-8') as f:
+    tracked=f.read().strip()
+rows=doc.get('alliances') or []
+tracked_rows=[r for r in rows if str(r.get('alliance_id',''))==tracked]
+doac=[r for r in rows if str(r.get('abbr','')).casefold()=='doac']
+print({'file':os.path.basename(path),'status':doc.get('status'),
+       'rows':len(rows),'rejected_rows':doc.get('rejected_rows'),
+       'tracked_id_length':len(tracked),'tracked_id_matches':len(tracked_rows),
+       'doac_matches':len(doac),
+       'doac':[{'name':r.get('name'),'abbr':r.get('abbr'),'rank':r.get('rank'),
+                'total_power':r.get('total_power'),'source_server':r.get('source_server'),
+                'member_count':r.get('member_count')} for r in doac]})
+PY
+'@
+    alliance_dashboard_read_model = @'
+set -eu
+cd /home/opc/doac-dashboard
+/home/opc/doac-dashboard/.venv/bin/python - <<'PY'
+from dashboard import history
+db_path='/home/opc/doac-private/doac-history.sqlite3'
+with history.connect(db_path) as db:
+    data=history.opponent_scout(db,1723,'thp')
+rows=[r for r in data['alliances'] if str(r.get('alliance_abbr','')).casefold()=='doac']
+print({'ranking_snapshot':bool(data['alliance_ranking_snapshot']),
+       'alliance_cards':len(data['alliances']),'doac_matches':len(rows),
+       'doac':[{'name':r.get('alliance_name'),'abbr':r.get('alliance_abbr'),
+                'total_power':r.get('total_power'),'member_count':r.get('member_count'),
+                'member_count_verified':r.get('member_count_verified'),
+                'top200_thp_count':r.get('top200_thp_count'),
+                'top_five_count':len(r.get('top_five_thp') or [])} for r in rows]})
+PY
+curl -sS -o /dev/null -w 'dashboard_http=%{http_code}\n' http://127.0.0.1:8080/opponents?server=1723
+'@
+    doac_alliance_overview = @'
+set -eu
+cd /home/opc/doac-dashboard
+/home/opc/doac-dashboard/.venv/bin/python - <<'PY'
+from pathlib import Path
+from dashboard import history
+aid=Path('/home/opc/doac-private/alliance-id').read_text(encoding='utf-8').strip()
+with history.connect('/home/opc/doac-private/doac-history.sqlite3') as db:
+    d=history.doac_review_groups(db,1723,aid,80_000_000,7_200_000)
+print({'name':d['alliance_name'],'member_count':d['member_count'],
+       'member_count_verified':d['member_count_verified'],'total_power':d['total_power'],
+       'average_power':d['average_power'],'top200_thp_count':d['top200_thp_count'],
+       'top_five_count':len(d['top_five_thp']),'elapsed_vs_days':d['elapsed_days'],
+       'groups':{k:len(v) for k,v in d['groups'].items()},
+       'insufficient':len(d['insufficient'])})
+PY
+'@
     alliance_current_bundle_checks = @'
 set -eu
 d=$(mktemp -d /tmp/doac-dev/alliance-check.XXXXXX)
@@ -111,6 +174,21 @@ for path in internal/analytics/alliance.go internal/analytics/analytics_test.go;
 done
 cd "$d/client"
 /home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go
+/home/opc/.local/bin/go test -count=1 ./...
+/home/opc/.local/bin/go vet ./...
+'@
+    alliance_clean_export_checks = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/alliance-clean-export.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+git clone --quiet --depth 1 --branch feature/interactive-continuous-reader https://github.com/mysteryhawk/lastwar-client.git "$d/client"
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/overlay"
+install -m 0644 "$d/overlay/internal/analytics/alliance.go" "$d/client/internal/analytics/alliance.go"
+install -m 0644 "$d/overlay/internal/analytics/analytics_test.go" "$d/client/internal/analytics/analytics_test.go"
+cd "$d/client"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/alliance.go internal/analytics/analytics_test.go
+bad=$(/home/opc/.local/lib/go1.27.2/bin/gofmt -l internal/analytics/alliance.go internal/analytics/analytics_test.go)
+test -z "$bad"
 /home/opc/.local/bin/go test -count=1 ./...
 /home/opc/.local/bin/go vet ./...
 '@
