@@ -905,3 +905,11 @@ action: commit/push the paired client/dashboard schema milestone. Make at most o
 bounded server-1723 live collection when account availability is appropriate; stop on
 authentication rejection. Server-1724 alliance totals remain unavailable because no
 legitimate target routing is known.
+
+The schema milestone is pushed as client `0969c92` and dashboard `319707e`; both draft
+PRs remain open. It has not been production-deployed. Immediate next action is a single
+reviewed deployment of the paired code and one bounded server-1723 collection outside
+the owner's previously reported common 02:30–03:30 account-use window. This checkpoint
+was reached inside that window, so no authentication attempt was made. On rejection,
+stop without retrying; on success, validate aggregate alliance count, tracked-alliance
+presence and exact total power without printing identities.
