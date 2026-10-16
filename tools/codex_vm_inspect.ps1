@@ -349,6 +349,61 @@ python3 "$d/overlay/.codex-transfer/artifacts/prepare_s3_vs.py" \
 test "$(stat -c %a "$out/evidence.json")" = 600
 test "$(stat -c %a "$out/mapping.json")" = 600
 '@
+    alpha_deploy_diagnose = @'
+set -eu
+printf 'backup='; test -d /home/opc/doac-private/backups/alpha-candidate-cbf303c-6c060f9 && echo yes || echo no
+printf 'dashboard='; systemctl --user is-active doac-dashboard.service || true
+for unit in doac-thp-mvp.timer doac-vs-mvp.timer doac-base-level.timer doac-thp-benchmark.timer doac-events.timer; do
+  printf '%s=' "$unit"; systemctl --user is-active "$unit" 2>/dev/null || true
+done
+for bundle in /tmp/doac-dev/incoming/lastwar-client-bundle.zip /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip; do
+  printf '%s=' "$(basename "$bundle")"; test -s "$bundle" && echo present || echo missing
+  unzip -l "$bundle" 2>/dev/null | grep -E 'client-cbf303c.zip|dashboard-6c060f9.zip' || true
+done
+python3 - <<'PY'
+import sqlite3
+db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True)
+tables={r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+print('historical_tables='+str({'historical_vs_periods','historical_vs_records'} <= tables).lower())
+if 'historical_vs_periods' in tables:
+ print('historical_periods='+str(db.execute('select count(*) from historical_vs_periods').fetchone()[0]))
+print('alliance_detail_snapshots='+str(db.execute("select count(*) from alliance_ranking_snapshots where command='get.al.info'").fetchone()[0]))
+PY
+'@
+    alpha_archive_hashes = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/alpha-hashes.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/client"
+unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/dashboard"
+sha256sum "$d/client/.codex-transfer/artifacts/client-cbf303c.zip"
+sha256sum "$d/dashboard/.codex-transfer/artifacts/dashboard-6c060f9.zip"
+'@
+    alpha_stage_checks = @'
+set -u
+d=$(mktemp -d /tmp/doac-dev/alpha-stage-check.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/cp"
+unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/dp"
+unzip -oq "$d/cp/.codex-transfer/artifacts/client-cbf303c.zip" -d "$d/client"
+unzip -oq "$d/dp/.codex-transfer/artifacts/dashboard-6c060f9.zip" -d "$d/dashboard"
+cd "$d/client"
+echo GOFMT
+find internal/analytics -type f -name '*.go' -print0 | xargs -0 /home/opc/.local/lib/go1.27.2/bin/gofmt -l
+/home/opc/.local/lib/go1.27.2/bin/gofmt -l internal/app/analytics.go
+echo GOTEST
+/home/opc/.local/bin/go test -count=1 ./internal/analytics ./internal/app ./internal/session ./internal/sfs
+echo GOVET
+/home/opc/.local/bin/go vet ./internal/analytics ./internal/app ./internal/session ./internal/sfs
+echo GOBUILD
+/home/opc/.local/bin/go build -o "$d/lastwar-client" ./cmd/lastwar-client
+cd "$d/dashboard"
+echo PYTEST1
+/home/opc/doac-dashboard/.venv/bin/python -m unittest tools.test_import_historical_vs dashboard.test_historical_vs dashboard.test_dashboard
+cd "$d/dashboard/tools"
+echo PYTEST2
+/home/opc/doac-dashboard/.venv/bin/python -m unittest test_ingest_analytics test_account_safety test_run_opponent_alliance_details
+'@
 }
 $operation = [string]$manifest.operation
 if (!$commands.ContainsKey($operation)) { throw 'unsupported read-only inspection operation' }

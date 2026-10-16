@@ -12,7 +12,11 @@
   owner server exactly match the requested entity and target server.
 - Automated verification: the complete uncached Go suite and `go vet ./...` passed on
   the Oracle VM using a temporary overlay; VM Go 1.27.2 reports no gofmt difference.
-  No live `get.al.info` request has yet been sent.
+  Live 2026-10-16: one authenticated session sent ten bounded `get.al.info` requests for
+  already observed server-1724 alliance IDs. Authentication and transport succeeded, but
+  every response failed the strict expected identity/metric shape; no detail was imported.
+  The parser now emits only allowlisted field names and fixed rejection-reason labels on
+  this failure path. The exact next live step is one request, not another ten-row batch.
 - Senior alpha review of the previous heads rejected merge on account concurrency,
   persistent authentication-stop handling, historical-member denominator inflation and
   formatting. The dashboard working tree now addresses the first three; this client

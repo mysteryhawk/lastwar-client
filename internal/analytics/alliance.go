@@ -89,6 +89,9 @@ var allianceShapeFields = map[string]bool{
 var allianceResponseFields = map[string]bool{
 	"_id": true, "_time": true, "allianceRanking": true, "errorCode": true,
 	"ismerge": true, "selfRanking": true, "serverRanking": true, "success": true,
+	"uid": true, "allianceId": true, "name": true, "abbr": true,
+	"leaderName": true, "fightPower": true, "fightpower": true,
+	"curMember": true, "memberCount": true, "ownerServerId": true, "createServer": true,
 }
 
 func sfsTypeName(tag byte) string {
@@ -356,9 +359,41 @@ func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject)
 	}
 	serverID, serverOK := integer(p, "ownerServerId")
 	members, membersOK := integer(p, "curMember")
+	if !membersOK {
+		members, membersOK = integer(p, "memberCount")
+	}
 	if allianceID == "" || allianceID != q.EntityAllianceID || !powerOK || power < 0 ||
 		!serverOK || serverID != int64(s.TargetServer) || !membersOK || members < 0 {
 		s.Status = "partial"
+		s.RejectionReasons = map[string]int{}
+		if allianceID == "" {
+			s.RejectionReasons["missing_alliance_id"] = 1
+		} else if allianceID != q.EntityAllianceID {
+			s.RejectionReasons["alliance_id_mismatch"] = 1
+		}
+		if !powerOK {
+			s.RejectionReasons["missing_or_wrong_power_type"] = 1
+		} else if power < 0 {
+			s.RejectionReasons["negative_power"] = 1
+		}
+		if !serverOK {
+			s.RejectionReasons["missing_or_wrong_owner_server_type"] = 1
+		} else if serverID != int64(s.TargetServer) {
+			s.RejectionReasons["owner_server_mismatch"] = 1
+		}
+		if !membersOK {
+			s.RejectionReasons["missing_or_wrong_member_count_type"] = 1
+		} else if members < 0 {
+			s.RejectionReasons["negative_member_count"] = 1
+		}
+		for _, key := range p.Keys() {
+			if !sfs.IsSensitiveSFSKey(key) && allianceResponseFields[key] {
+				s.ResponseFields = append(s.ResponseFields, key)
+			} else {
+				s.ResponseOtherFields++
+			}
+		}
+		sort.Strings(s.ResponseFields)
 		return errors.New("invalid alliance detail identity or metrics")
 	}
 	record := AllianceRecord{AllianceID: allianceID, Name: p.GetString("name"),

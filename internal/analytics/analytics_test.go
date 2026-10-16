@@ -173,6 +173,21 @@ func TestAllianceDetailValidatesForeignOwnerServerAndMetrics(t *testing.T) {
 	if err == nil || snapshot.Status != "partial" || len(snapshot.Alliances) != 0 {
 		t.Fatalf("foreign owner mismatch accepted: snapshot=%+v err=%v", snapshot, err)
 	}
+	if snapshot.RejectionReasons["owner_server_mismatch"] != 1 ||
+		!reflect.DeepEqual(snapshot.ResponseFields, []string{"abbr", "curMember", "fightPower", "leaderName", "name", "ownerServerId", "uid"}) {
+		t.Fatalf("unsafe or incomplete detail diagnostic: %+v", snapshot)
+	}
+	alias := sfs.NewSFSObject()
+	alias.PutUtfString("uid", "alliance-1724-A")
+	alias.PutUtfString("name", "Foreign Alliance")
+	alias.PutInt("ownerServerId", 1724)
+	alias.PutInt("memberCount", 97)
+	alias.PutLong("fightPower", 9876543210)
+	requester.params = alias
+	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
+	if err != nil || snapshot.Status != "ok" || snapshot.Alliances[0].MemberCount != 97 {
+		t.Fatalf("memberCount alias rejected: snapshot=%+v err=%v", snapshot, err)
+	}
 }
 
 func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T) {
