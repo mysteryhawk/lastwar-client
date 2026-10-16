@@ -55,6 +55,8 @@ type Query struct {
 	Roster                              bool
 	FilterAlliance                      bool
 	AllianceRanking                     bool
+	AllianceDetail                      bool
+	EntityAllianceID                    string
 }
 
 // AllianceRankQuery follows AllianceRankListMessage. Static Lua evidence shows
@@ -68,6 +70,19 @@ func AllianceRankQuery(isMerge int32, period string) (Query, error) {
 	return Query{Command: "alliance.rank", Params: p, Metric: "alliance_power",
 		Period: period, Payload: "allianceRanking", ValueField: "fightpower",
 		AllianceRanking: true}, nil
+}
+
+// AllianceDetailQuery follows GetAllianceInfoMessage. Static Lua evidence
+// shows one allianceId UTF string request; the response identifies its
+// ownerServerId and exposes the alliance's name, member count and fightPower.
+func AllianceDetailQuery(allianceID, period string) (Query, error) {
+	if allianceID == "" || allianceID == "0" || len(allianceID) > 128 || period == "" {
+		return Query{}, errInvalidQuery
+	}
+	p := sfs.NewSFSObject()
+	p.PutUtfString("allianceId", allianceID)
+	return Query{Command: "get.al.info", Params: p, Metric: "alliance_detail",
+		Period: period, AllianceDetail: true, EntityAllianceID: allianceID}, nil
 }
 
 // MeteoriteAutoQuery first reads the event's current schedule/stage. The app

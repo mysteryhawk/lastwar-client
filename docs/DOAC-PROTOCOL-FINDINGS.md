@@ -4,6 +4,17 @@ Most findings below are **static analysis of the official historical client**. T
 live-verification section is the explicit exception. The collectors also have automated
 synthetic tests. Keep all three evidence levels separate.
 
+## Foreign alliance detail — static evidence 2026-10-16
+
+Current VM Lua evidence maps `MsgDefines.GetAllianceInfo` to `get.al.info` and
+`Net/Msgs/GetAllianceInfoMessage.luac`. Its request contains one UTF string,
+`allianceId`. The handler passes the response through
+`AllianceTempListManager:RefreshAllianceData`, then calls the alliance UI with the
+returned `ownerServerId` and `uid`. `AllianceBaseInfo:ParseDataNew` consumes `uid`,
+`name`, `abbr`, `leaderName`, `fightPower`, `curMember` and `ownerServerId` among other
+fields. This justifies a bounded read-only entity-detail query and strict returned-owner
+validation; it does not yet constitute a live server-1724 response.
+
 ## Live verification — 2026-10-11
 
 Fresh first-login guests on several observed source servers authenticated successfully;

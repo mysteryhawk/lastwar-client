@@ -1,5 +1,26 @@
 # DoAC agent state
 
+## Alpha-candidate work in progress (2026-10-16)
+
+- Branch remains `feature/interactive-continuous-reader`; current pushed head before this
+  milestone is `b58a601`. The working tree adds the statically verified read-only
+  `get.al.info {allianceId: Utf}` query and a schema-v2 alliance-detail response parser.
+- Static live-client evidence is confirmed: `GetAllianceInfoMessage` sends only the
+  alliance ID; its handler checks `ownerServerId`; `AllianceBaseInfo:ParseDataNew` reads
+  `uid`, `name`, `abbr`, `leaderName`, `fightPower`, `curMember` and `ownerServerId`.
+  The collector accepts cross-server detail only when the response alliance ID and
+  owner server exactly match the requested entity and target server.
+- Automated verification: the complete uncached Go suite and `go vet ./...` passed on
+  the Oracle VM using a temporary overlay; VM Go 1.27.2 reports no gofmt difference.
+  No live `get.al.info` request has yet been sent.
+- Senior alpha review of the previous heads rejected merge on account concurrency,
+  persistent authentication-stop handling, historical-member denominator inflation and
+  formatting. The dashboard working tree now addresses the first three; this client
+  milestone addresses the formatting finding. A fresh independent review is required.
+- Exact next action: publish the reviewed changes, deploy a temporary/tested client
+  build, then make one guarded authenticated session containing a bounded set of
+  foreign-alliance detail requests. On authentication rejection, stop immediately.
+
 ## Standing operating authority (2026-10-14)
 
 Repository-wide autonomous-development authority and safety boundaries are recorded in
@@ -10,7 +31,7 @@ live-database mutation, persistent VM jobs, paid infrastructure, gameplay action
 default-branch merges or destructive operations. On live authentication rejection,
 stop further authentication attempts immediately and continue offline.
 
-Updated: 2026-10-14. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
+Updated: 2026-10-16. Read this alongside [DOAC-HANDOVER.md](DOAC-HANDOVER.md).
 
 ## Current state
 

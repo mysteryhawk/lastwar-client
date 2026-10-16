@@ -51,7 +51,7 @@ func runAnalytics(conn *session.GameConn, cfg *analytics.Config, sourceServer in
 			slog.Info("meteorite context", "status", snapshot.Status, "stage", snapshot.Parameters["stage"], "grabTimes", snapshot.Parameters["grabTimes"], "roundQueries", len(rounds))
 			continue
 		}
-		if q.AllianceRanking {
+		if q.AllianceRanking || q.AllianceDetail {
 			snapshot, collectErr := collector.CollectAllianceRanking(ctx, q)
 			if collectErr != nil {
 				failures = append(failures, fmt.Errorf("%s: %w", q.Metric, collectErr))

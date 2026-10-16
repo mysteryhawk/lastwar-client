@@ -15,20 +15,21 @@ type Config struct {
 }
 
 type QueryConfig struct {
-	EventID   string `json:"event_id,omitempty"`
-	GrabTimes *int32 `json:"grab_times,omitempty"`
-	StartRank int32  `json:"start_rank,omitempty"`
-	Count     int32  `json:"count,omitempty"`
-	PageSize  int32  `json:"page_size,omitempty"`
-	SubType   *int32 `json:"sub_type,omitempty"`
-	Start     int32  `json:"start,omitempty"`
-	End       int32  `json:"end,omitempty"`
-	Kind      string `json:"kind"`
-	Period    string `json:"period"`
-	Day       int32  `json:"day,omitempty"`
-	RankType  int32  `json:"rank_type,omitempty"`
-	Global    int32  `json:"global,omitempty"`
-	IsMerge   int32  `json:"ismerge,omitempty"`
+	AllianceID string `json:"alliance_id,omitempty"`
+	EventID    string `json:"event_id,omitempty"`
+	GrabTimes  *int32 `json:"grab_times,omitempty"`
+	StartRank  int32  `json:"start_rank,omitempty"`
+	Count      int32  `json:"count,omitempty"`
+	PageSize   int32  `json:"page_size,omitempty"`
+	SubType    *int32 `json:"sub_type,omitempty"`
+	Start      int32  `json:"start,omitempty"`
+	End        int32  `json:"end,omitempty"`
+	Kind       string `json:"kind"`
+	Period     string `json:"period"`
+	Day        int32  `json:"day,omitempty"`
+	RankType   int32  `json:"rank_type,omitempty"`
+	Global     int32  `json:"global,omitempty"`
+	IsMerge    int32  `json:"ismerge,omitempty"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -119,6 +120,8 @@ func (c *Config) BuildQueries() ([]Query, error) {
 			q, err = RankQuery(PlayerPowerRankingType, v.Global, c.TargetServer, "player_power", "power", v.Period)
 		case "alliance_power":
 			q, err = AllianceRankQuery(v.IsMerge, v.Period)
+		case "alliance_detail":
+			q, err = AllianceDetailQuery(v.AllianceID, v.Period)
 		case "desert_thp":
 			q = DesertTHPQuery(v.Period)
 		default:

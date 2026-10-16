@@ -134,6 +134,45 @@ func TestQueriesHaveLuaWireTags(t *testing.T) {
 	if _, e := AllianceRankQuery(2, "day:test"); e == nil {
 		t.Fatal("invalid alliance merge scope accepted")
 	}
+	detail, e := AllianceDetailQuery("alliance-1724-A", "day:test")
+	if e != nil || detail.Command != "get.al.info" || !detail.AllianceDetail ||
+		detail.Params.GetString("allianceId") != "alliance-1724-A" {
+		t.Fatal("wrong alliance detail query")
+	}
+	if _, e := AllianceDetailQuery("", "day:test"); e == nil {
+		t.Fatal("empty alliance detail identity accepted")
+	}
+}
+
+func TestAllianceDetailValidatesForeignOwnerServerAndMetrics(t *testing.T) {
+	q, err := AllianceDetailQuery("alliance-1724-A", "game-day:2026-10-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := sfs.NewSFSObject()
+	p.PutUtfString("uid", "alliance-1724-A")
+	p.PutUtfString("name", "Foreign Alliance")
+	p.PutUtfString("abbr", "FOR")
+	p.PutUtfString("leaderName", "Leader")
+	p.PutInt("ownerServerId", 1724)
+	p.PutInt("curMember", 97)
+	p.PutLong("fightPower", 9876543210)
+	requester := &countingRequester{params: p}
+	collector := Collector{Client: requester, SourceServer: 1723, TargetServer: 1724,
+		AllianceID: "tracked-doac"}
+	snapshot, err := collector.CollectAllianceRanking(context.Background(), q)
+	if err != nil || snapshot.Status != "ok" || snapshot.Validation != "response_owner_server_match" ||
+		len(snapshot.Alliances) != 1 || snapshot.Alliances[0].Name != "Foreign Alliance" ||
+		snapshot.Alliances[0].ServerID != 1724 || snapshot.Alliances[0].MemberCount != 97 ||
+		snapshot.Alliances[0].TotalPower != 9876543210 {
+		t.Fatalf("alliance detail snapshot=%+v err=%v", snapshot, err)
+	}
+
+	p.PutInt("ownerServerId", 1723)
+	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
+	if err == nil || snapshot.Status != "partial" || len(snapshot.Alliances) != 0 {
+		t.Fatalf("foreign owner mismatch accepted: snapshot=%+v err=%v", snapshot, err)
+	}
 }
 
 func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T) {

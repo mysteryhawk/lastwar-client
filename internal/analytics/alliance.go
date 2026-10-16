@@ -17,27 +17,27 @@ import (
 // AllianceSnapshot is deliberately separate from the player-UID snapshot
 // contract. Alliance IDs are entity keys and must never be exported as UIDs.
 type AllianceSnapshot struct {
-	Parameters        map[string]string `json:"parameters"`
-	SchemaVersion     int               `json:"schema_version"`
-	CollectedAt       time.Time         `json:"collected_at"`
-	SourceServer      int32             `json:"source_server"`
-	TargetServer      int32             `json:"target_server"`
-	TrackedAllianceID string            `json:"tracked_alliance_id"`
-	Command           string            `json:"command"`
-	Metric            string            `json:"metric"`
-	Period            string            `json:"period"`
-	Status            string            `json:"status"`
-	ErrorCode         string            `json:"error_code,omitempty"`
-	PayloadPresent    bool              `json:"payload_present"`
-	CompleteCohort    bool              `json:"complete_cohort"`
-	Validation        string            `json:"validation"`
-	RejectedRows      int               `json:"rejected_rows"`
-	ResponseFields    []string          `json:"response_fields,omitempty"`
-	ResponseOtherFields int              `json:"response_other_fields,omitempty"`
-	SelfRankingType    string            `json:"self_ranking_type,omitempty"`
-	RejectionReasons  map[string]int    `json:"rejection_reasons,omitempty"`
-	RowShape          *AllianceRowShape `json:"row_shape,omitempty"`
-	Alliances         []AllianceRecord  `json:"alliances"`
+	Parameters          map[string]string `json:"parameters"`
+	SchemaVersion       int               `json:"schema_version"`
+	CollectedAt         time.Time         `json:"collected_at"`
+	SourceServer        int32             `json:"source_server"`
+	TargetServer        int32             `json:"target_server"`
+	TrackedAllianceID   string            `json:"tracked_alliance_id"`
+	Command             string            `json:"command"`
+	Metric              string            `json:"metric"`
+	Period              string            `json:"period"`
+	Status              string            `json:"status"`
+	ErrorCode           string            `json:"error_code,omitempty"`
+	PayloadPresent      bool              `json:"payload_present"`
+	CompleteCohort      bool              `json:"complete_cohort"`
+	Validation          string            `json:"validation"`
+	RejectedRows        int               `json:"rejected_rows"`
+	ResponseFields      []string          `json:"response_fields,omitempty"`
+	ResponseOtherFields int               `json:"response_other_fields,omitempty"`
+	SelfRankingType     string            `json:"self_ranking_type,omitempty"`
+	RejectionReasons    map[string]int    `json:"rejection_reasons,omitempty"`
+	RowShape            *AllianceRowShape `json:"row_shape,omitempty"`
+	Alliances           []AllianceRecord  `json:"alliances"`
 }
 
 // AllianceRowShape is a bounded, value-free live-protocol diagnostic. It emits
@@ -59,13 +59,14 @@ type AllianceRowShapeVariant struct {
 }
 
 type AllianceRecord struct {
-	AllianceID string `json:"alliance_id"`
-	Name       string `json:"name,omitempty"`
-	Abbr       string `json:"abbr,omitempty"`
-	Leader     string `json:"leader,omitempty"`
-	ServerID   int32  `json:"server_id,omitempty"`
-	Rank       *int64 `json:"rank,omitempty"`
-	TotalPower int64  `json:"total_power"`
+	AllianceID  string `json:"alliance_id"`
+	Name        string `json:"name,omitempty"`
+	Abbr        string `json:"abbr,omitempty"`
+	Leader      string `json:"leader,omitempty"`
+	ServerID    int32  `json:"server_id,omitempty"`
+	Rank        *int64 `json:"rank,omitempty"`
+	TotalPower  int64  `json:"total_power"`
+	MemberCount int64  `json:"member_count,omitempty"`
 }
 
 func allianceIdentifier(o *sfs.SFSObject) string {
@@ -185,8 +186,10 @@ func rejectAlliance(s *AllianceSnapshot, reason string) {
 }
 
 func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error {
-	if !q.AllianceRanking || q.Command != "alliance.rank" || q.Payload != "allianceRanking" ||
-		q.ValueField != "fightpower" {
+	if q.AllianceDetail {
+		return parseAllianceDetailSnapshot(s, q, p)
+	}
+	if !q.AllianceRanking || q.Command != "alliance.rank" || q.Payload != "allianceRanking" || q.ValueField != "fightpower" {
 		return errInvalidQuery
 	}
 	if p == nil {
@@ -328,6 +331,46 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 	return nil
 }
 
+func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error {
+	if q.Command != "get.al.info" || q.EntityAllianceID == "" || q.Metric != "alliance_detail" {
+		return errInvalidQuery
+	}
+	if p == nil {
+		s.Status = "missing_payload"
+		return nil
+	}
+	if code := p.GetString("errorCode"); code != "" {
+		s.Status, s.ErrorCode = "server_error", code
+		return nil
+	}
+	if v, ok := p.Get("success"); ok {
+		if success, typed := v.Val.(bool); !typed || !success {
+			s.Status = "server_error"
+			return nil
+		}
+	}
+	allianceID := allianceIdentifier(p)
+	power, powerOK := integer(p, "fightPower")
+	if !powerOK {
+		power, powerOK = integer(p, "fightpower")
+	}
+	serverID, serverOK := integer(p, "ownerServerId")
+	members, membersOK := integer(p, "curMember")
+	if allianceID == "" || allianceID != q.EntityAllianceID || !powerOK || power < 0 ||
+		!serverOK || serverID != int64(s.TargetServer) || !membersOK || members < 0 {
+		s.Status = "partial"
+		return errors.New("invalid alliance detail identity or metrics")
+	}
+	record := AllianceRecord{AllianceID: allianceID, Name: p.GetString("name"),
+		Abbr: p.GetString("abbr"), Leader: p.GetString("leaderName"), ServerID: int32(serverID),
+		TotalPower: power, MemberCount: members}
+	s.Alliances = append(s.Alliances, record)
+	s.PayloadPresent = true
+	s.Status = "ok"
+	s.Validation = "response_owner_server_match"
+	return nil
+}
+
 func (c *Collector) CollectAllianceRanking(ctx context.Context, q Query) (AllianceSnapshot, error) {
 	s := AllianceSnapshot{SchemaVersion: 2, SourceServer: c.SourceServer,
 		TargetServer: c.TargetServer, TrackedAllianceID: c.AllianceID,
@@ -336,13 +379,17 @@ func (c *Collector) CollectAllianceRanking(ctx context.Context, q Query) (Allian
 	if isMerge, ok := integer(q.Params, "ismerge"); ok {
 		s.Parameters["ismerge"] = fmt.Sprintf("%d", isMerge)
 	}
+	if q.AllianceDetail {
+		s.Parameters["allianceId"] = q.EntityAllianceID
+	}
 	now := time.Now
 	if c.Now != nil {
 		now = c.Now
 	}
 	s.CollectedAt = now().UTC()
-	if c.Client == nil || c.SourceServer <= 0 || c.SourceServer != c.TargetServer ||
-		c.AllianceID == "" || !q.AllianceRanking || q.Command != "alliance.rank" || q.Period == "" {
+	validRanking := q.AllianceRanking && q.Command == "alliance.rank" && c.SourceServer == c.TargetServer
+	validDetail := q.AllianceDetail && q.Command == "get.al.info" && q.EntityAllianceID != ""
+	if c.Client == nil || c.SourceServer <= 0 || c.AllianceID == "" || (!validRanking && !validDetail) || q.Period == "" {
 		s.Status = "transport_error"
 		return s, errInvalidQuery
 	}
@@ -361,7 +408,9 @@ func (c *Collector) CollectAllianceRanking(ctx context.Context, q Query) (Allian
 		s.Status = "transport_error"
 		return s, errors.New("nil alliance ranking response")
 	}
-	s.Validation = "response_received_same_server"
+	if q.AllianceRanking {
+		s.Validation = "response_received_same_server"
+	}
 	err = ParseAllianceSnapshot(&s, q, message.Params)
 	return s, err
 }

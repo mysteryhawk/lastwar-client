@@ -243,6 +243,112 @@ f=$(find /home/opc/lastwar-lua/fixed -type f -name '01044.luac' | head -1)
 test -n "$f"
 java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$f" | head -260
 '@
+    lua_fightpower_index = @'
+set -eu
+find /home/opc/lastwar-lua -maxdepth 2 -type f -printf '%P\n' | sort | head -160
+grep -RIl --include='*.lua' -E 'fightpower|fightPower' /home/opc/lastwar-lua/decompiled 2>/dev/null | head -160 || true
+'@
+    lua_fightpower_bytecode = @'
+set -eu
+find /home/opc/lastwar-lua/fixed -type f -name '*.luac' -print0 | xargs -0 grep -aIl -E 'fightpower|fightPower' | head -240
+'@
+    lua_ismerge_refs = @'
+set -eu
+for f in $(find /home/opc/lastwar-lua/fixed -type f -name '*.luac'); do
+  if strings "$f" | grep -q '^ismerge$'; then
+    b=$(basename "$f")
+    echo "FILE:$b"
+    grep -F "$b" /home/opc/lastwar-lua/matches.tsv || true
+    strings "$f" | grep -Ei 'alliance|rank|merge|server|fightpower' | head -80
+  fi
+done
+'@
+    lua_alliance_info_commands = @'
+set -eu
+grep -nEi 'Alliance.*(Info|Detail|Search|Rank|List)|(^|[[:space:]])Al.*Info' /home/opc/lastwar-lua/decompiled/MsgDefines.lua | head -320
+'@
+    lua_get_alliance_info_trace = @'
+set -eu
+grep -nE 'GetAllianceInfo|get\.al\.info' /home/opc/lastwar-lua/modules.tsv /home/opc/lastwar-lua/matches.tsv | head -160 || true
+find /home/opc/lastwar-lua/decompiled -maxdepth 4 -type f -name '*.lua' -print0 2>/dev/null | xargs -0 grep -HnE 'GetAllianceInfo|get\.al\.info' 2>/dev/null | head -240 || true
+for f in $(find /home/opc/lastwar-lua/fixed -type f -name '*.luac'); do
+  if strings "$f" | grep -qE 'GetAllianceInfo|get\.al\.info'; then
+    b=$(basename "$f")
+    echo "FILE:$b"
+    grep -F "$b" /home/opc/lastwar-lua/matches.tsv || true
+    java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$f" 2>/dev/null | head -320 || true
+  fi
+done
+'@
+    lua_get_alliance_info_message = @'
+set -eu
+f=$(find /home/opc/lastwar-lua/fixed -type f -name '00661.luac' | head -1)
+test -n "$f"
+java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$f" | head -360
+find /home/opc/lastwar-lua/decompiled -maxdepth 4 -type f -name '*.lua' -print0 2>/dev/null | xargs -0 grep -HnE 'TryShowAllianceInfo|GetAllianceInfo' 2>/dev/null | head -260 || true
+'@
+    lua_alliance_temp_manager = @'
+set -eu
+grep -nE 'AllianceTempListManager' /home/opc/lastwar-lua/modules.tsv /home/opc/lastwar-lua/matches.tsv | head -40
+for f in $(grep -E 'AllianceTempListManager' /home/opc/lastwar-lua/matches.tsv | cut -f1 | head -4); do
+  p=$(find /home/opc/lastwar-lua/fixed -type f -name "$f" | head -1)
+  test -n "$p"
+  echo "FILE:$f"
+  java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$p" | head -520
+done
+'@
+    lua_alliance_base_info = @'
+set -eu
+grep -nE 'AllianceBaseInfo\.luac' /home/opc/lastwar-lua/modules.tsv /home/opc/lastwar-lua/matches.tsv | head -40
+for f in $(grep -E 'AllianceBaseInfo\.luac' /home/opc/lastwar-lua/matches.tsv | cut -f1 | head -4); do
+  p=$(find /home/opc/lastwar-lua/fixed -type f -name "$f" | head -1)
+  test -n "$p"
+  echo "FILE:$f"
+  java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$p" | head -620
+done
+'@
+    client_overlay_checks = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/client-overlay.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+git clone --quiet --depth 1 --branch feature/interactive-continuous-reader https://github.com/mysteryhawk/lastwar-client.git "$d/client"
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/overlay"
+cp -R "$d/overlay/." "$d/client/"
+cd "$d/client"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/types.go internal/analytics/config.go internal/analytics/alliance.go internal/analytics/analytics_test.go internal/app/analytics.go
+bad=$(/home/opc/.local/lib/go1.27.2/bin/gofmt -l internal/analytics/types.go internal/analytics/config.go internal/analytics/alliance.go internal/analytics/analytics_test.go internal/app/analytics.go)
+test -z "$bad"
+/home/opc/.local/bin/go test -count=1 ./...
+/home/opc/.local/bin/go vet ./...
+'@
+    client_overlay_gofmt_diff = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/client-gofmt.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/overlay"
+cd "$d/overlay"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -d internal/analytics/types.go internal/analytics/config.go internal/analytics/alliance.go internal/analytics/analytics_test.go internal/app/analytics.go
+'@
+    historical_vs_prepare = @'
+set -eu
+test -s /home/opc/doac-private/doac-history.sqlite3
+test -s /home/opc/doac-private/alliance-id
+d=$(mktemp -d /tmp/doac-dev/historical-prepare.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/overlay"
+out=/tmp/doac-dev/historical-vs
+mkdir -p "$out"
+chmod 700 "$out"
+python3 "$d/overlay/.codex-transfer/artifacts/prepare_s3_vs.py" \
+  --source "$d/overlay/.codex-transfer/artifacts/doac-s3-vs-source.md" \
+  --db /home/opc/doac-private/doac-history.sqlite3 \
+  --capture-root /home/opc/doac-private \
+  --alliance-id-file /home/opc/doac-private/alliance-id \
+  --evidence "$out/evidence.json" --mapping "$out/mapping.json" \
+  --unmatched "$out/unmatched.json"
+test "$(stat -c %a "$out/evidence.json")" = 600
+test "$(stat -c %a "$out/mapping.json")" = 600
+'@
 }
 $operation = [string]$manifest.operation
 if (!$commands.ContainsKey($operation)) { throw 'unsupported read-only inspection operation' }
