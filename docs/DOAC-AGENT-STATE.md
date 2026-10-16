@@ -1043,3 +1043,11 @@ Immediate next action is to commit/push the array-rank parser and documentation.
 make another alliance login request merely to reconfirm static array semantics. Member
 count remains absent from `alliance.rank`; server-1724 totals still need a legitimate
 server-1724 source session or proven routing.
+
+## Tunnel address correction (2026-10-16)
+
+The dashboard and tunnel services remained active, but the earlier Quick Tunnel hostname
+was stale after the dashboard deployment restart. The fixed inspector now verifies the
+current public `/login` endpoint as well as reading the address. The replacement returned
+HTTP 200 at `https://aid-whereas-shaft-reserve.trycloudflare.com/`. Quick Tunnel addresses
+remain ephemeral and must be re-read after a tunnel restart.

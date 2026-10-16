@@ -53,6 +53,14 @@ test -z "$bad"
 systemctl --user list-timers --all --no-pager | grep -E 'doac-(thp|base|vs)' || true; systemctl --user is-active doac-thp-mvp.service doac-base-level.service doac-thp-benchmark.service 2>/dev/null || true; python3 -c "import sqlite3; db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True); [print('|'.join(str(x) for x in row)) for row in db.execute(\"select metric,status,count(*),max(collected_at) from analytics_snapshots where metric in ('vs_daily','vs_weekly') group by metric,status order by metric,status\")]"
 '@
     tunnel_url = "grep -Eo 'https://[A-Za-z0-9.-]+\.trycloudflare\.com' /home/opc/doac-private/dashboard-tunnel.log | tail -1"
+    tunnel_public_health = @'
+set -eu
+url=$(grep -Eo 'https://[A-Za-z0-9.-]+\.trycloudflare\.com' /home/opc/doac-private/dashboard-tunnel.log | tail -1)
+test -n "$url"
+code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url/login")
+printf '%s\n%s\n' "$url" "$code"
+test "$code" = 200
+'@
     alliance_deploy_state = @'
 set -eu
 uptime
