@@ -42,7 +42,7 @@ Supported query kinds:
 | `vs_weekly` | none | type 1; no day |
 | `vs_season` | none | type 2; no day |
 | `desert_thp` | none | implicit logged-in alliance; Desert Storm `users[].heroPower`; no paging |
-| `alliance_power` | `ismerge` 0 or 1 | same-server `alliance.rank`; schema-v2 alliance entities with `fightpower` |
+| `alliance_power` | `ismerge` 0 or 1 | same-server `alliance.rank`; live collection `allianceRanking`; schema-v2 alliance entities with `fightpower` |
 | `season_power` | `rank_type`: 2 or 4 | page_size 100; individual seasonal `score` |
 | `season_devotes` | `event_id`, active-event `sub_type` | start 1,end -1; no guessed event ID; `score` |
 | `svs` | none | Candidate cross-war personal ranking; confirm event applicability live |

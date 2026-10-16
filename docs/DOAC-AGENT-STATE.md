@@ -913,3 +913,33 @@ the owner's previously reported common 02:30–03:30 account-use window. This ch
 was reached inside that window, so no authentication attempt was made. On rejection,
 stop without retrying; on success, validate aggregate alliance count, tracked-alliance
 presence and exact total power without printing identities.
+
+## Alliance-power production validation (2026-10-16)
+
+Client `a1522ef` and dashboard `9e67051` were deployed after a disposable VM gate passed
+the uncached Go suite, `go vet`, 49 dashboard tool tests, 29 Flask tests and Python
+compilation. The active collector is `/home/opc/doac-private/bin/lastwar-client`; the
+similarly named development binary is not the scheduled-service target. The deployment
+created the additive `alliance_ranking_snapshots` and `alliance_ranking_records` tables,
+restarted only the dashboard service, and preserved production data and timers. Rollback
+copies are under private `alliance-power-9e67051-predeploy-v*` directories; `v4` contains
+the complete pre-active-binary copy.
+
+Live verification was read-only on the established source-server-1723 account. Three
+bounded, manually sequenced validations authenticated successfully, with no rejection,
+warning, rate limit or apparent displacement; no automatic retry loop was used. The
+first proved the static `serverRanking` interpretation wrong. A value-free diagnostic
+then confirmed response fields `_id`, `_time`, `allianceRanking` and `selfRanking`.
+After correcting the canonical collection to `allianceRanking`, the endpoint returned
+50 rows, but the strict synthetic row contract rejected all 50. Nothing was imported:
+the alliance-ranking tables remain empty and the dashboard correctly reports genuine
+total/average power as unavailable.
+
+Confirmed versus unresolved: command `alliance.rank`, `ismerge:Int`, source scope and
+top-level collection are live-verified. Exact row identity and numeric field types are
+not. Static `AllianceRankData` strings include name, abbreviation, leader,
+`fightpower`, rank and server fields but do not independently prove an alliance-ID field.
+Stop live testing here. Immediate next action is an offline bounded row-shape diagnostic
+that records only allowlisted field names, SFS type tags and collection sizes—never
+values—then one later reviewed request. Do not weaken identity semantics, fabricate IDs,
+or import the rejected rows.

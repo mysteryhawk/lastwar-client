@@ -153,7 +153,9 @@ no currently visible ranking, not zero participation.
 
 Version-matched Lua identifies `AllianceRankList` as `alliance.rank`.
 `AllianceRankListMessage` sends one integer field, `ismerge`, and passes the response to
-`RankDataManager:ParseAllianceRankData`, which reads `serverRanking`.
+`RankDataManager:ParseAllianceRankData`. A bounded live server-1723 response on
+2026-10-16 confirmed top-level `allianceRanking` and `selfRanking`; the earlier
+`serverRanking` interpretation selected the wrong branch of that manager.
 `AllianceRankData:ParseData` maps `alliancename`, `abbr`, `fightpower`, leader, rank,
 country and `serverId`/`srcServer`. This is the correct source for genuine alliance total
 power; summing incomplete player-power observations is not equivalent.
@@ -163,8 +165,10 @@ session can therefore be evaluated only for that session's ranking scope. Static
 does not authorise or prove arbitrary-server alliance-rank access for server 1724. The
 implemented schema-v2 exporter keeps alliance IDs and `fightpower` in a specialised
 alliance-entity contract; player UID records are not repurposed. It rejects source/target
-server mismatch before sending any request. Live payload and coverage validation remain
-pending.
+server mismatch before sending any request. The collection name is live-verified, but
+row identity/type coverage remains unresolved: the first corrected response contained
+50 rows and all were rejected by the strict synthetic row contract. No values were
+imported and another login must wait for an offline, value-free row-shape diagnostic.
 
 The existing `PlayerRankData` path also maps `alliancename` and `abbr`. These two labels
 are now allowlisted on normal `rank.get` player records so future scoped scouting captures

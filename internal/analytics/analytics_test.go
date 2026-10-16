@@ -9,6 +9,7 @@ import (
 	"lastwar-client/internal/sfs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -123,7 +124,7 @@ func TestQueriesHaveLuaWireTags(t *testing.T) {
 		t.Fatal("wrong season battle score query")
 	}
 	alliance, e := AllianceRankQuery(0, "day:test")
-	if e != nil || alliance.Command != "alliance.rank" || !alliance.AllianceRanking ||
+	if e != nil || alliance.Command != "alliance.rank" || alliance.Payload != "allianceRanking" || !alliance.AllianceRanking ||
 		alliance.Params.GetInt("ismerge") != 0 {
 		t.Fatal("wrong alliance power query")
 	}
@@ -148,7 +149,7 @@ func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T
 	row.PutInt("serverId", 1723)
 	row.PutInt("rank", 2)
 	row.PutLong("fightpower", 123456789)
-	requester := &countingRequester{params: payload("serverRanking", row)}
+	requester := &countingRequester{params: payload("allianceRanking", row)}
 	now := time.Date(2026, 10, 16, 2, 0, 0, 0, time.UTC)
 	collector := Collector{Client: requester, SourceServer: 1723, TargetServer: 1723,
 		AllianceID: "alliance-A", Now: func() time.Time { return now }}
@@ -170,6 +171,31 @@ func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T
 	rejected, err := collector.CollectAllianceRanking(context.Background(), q)
 	if !errors.Is(err, errInvalidQuery) || requester.calls != 0 || rejected.Status != "transport_error" {
 		t.Fatal("cross-server alliance request was not stopped before send")
+	}
+}
+
+func TestAllianceRankingMissingPayloadRecordsFieldNamesOnly(t *testing.T) {
+	q, err := AllianceRankQuery(0, "game-day:2026-10-16")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := sfs.NewSFSObject()
+	p.PutInt("_id", 4)
+	p.PutSFSArray("serverRanking", sfs.NewSFSArray())
+	p.PutUtfString("accessToken", "SECRET")
+	s := AllianceSnapshot{}
+	if err := ParseAllianceSnapshot(&s, q, p); err != nil {
+		t.Fatal(err)
+	}
+	if s.Status != "missing_payload" || !reflect.DeepEqual(s.ResponseFields, []string{"_id", "serverRanking"}) {
+		t.Fatalf("unexpected diagnostic: %+v", s)
+	}
+	exported := new(bytes.Buffer)
+	if err := ExportAllianceJSONL(exported, s); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(exported.String(), "accessToken") || strings.Contains(exported.String(), "SECRET") {
+		t.Fatalf("diagnostic exported values: %s", exported.String())
 	}
 }
 

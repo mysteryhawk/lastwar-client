@@ -66,7 +66,7 @@ func AllianceRankQuery(isMerge int32, period string) (Query, error) {
 	p := sfs.NewSFSObject()
 	p.PutInt("ismerge", isMerge)
 	return Query{Command: "alliance.rank", Params: p, Metric: "alliance_power",
-		Period: period, Payload: "serverRanking", ValueField: "fightpower",
+		Period: period, Payload: "allianceRanking", ValueField: "fightpower",
 		AllianceRanking: true}, nil
 }
 

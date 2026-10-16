@@ -53,6 +53,67 @@ test -z "$bad"
 systemctl --user list-timers --all --no-pager | grep -E 'doac-(thp|base|vs)' || true; systemctl --user is-active doac-thp-mvp.service doac-base-level.service doac-thp-benchmark.service 2>/dev/null || true; python3 -c "import sqlite3; db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True); [print('|'.join(str(x) for x in row)) for row in db.execute(\"select metric,status,count(*),max(collected_at) from analytics_snapshots where metric in ('vs_daily','vs_weekly') group by metric,status order by metric,status\")]"
 '@
     tunnel_url = "grep -Eo 'https://[A-Za-z0-9.-]+\.trycloudflare\.com' /home/opc/doac-private/dashboard-tunnel.log | tail -1"
+    alliance_deploy_state = @'
+set -eu
+uptime
+free -h
+df -h /home/opc
+systemctl --user cat doac-dashboard.service
+systemctl --user list-timers --all --no-pager | grep -E 'doac-(thp|base|vs|benchmark|alliance)' || true
+readlink -f /home/opc/lastwar-client/lastwar-client
+test -x /home/opc/lastwar-client/lastwar-client
+test -f /home/opc/doac-private/doac-history.sqlite3
+python3 -c "import sqlite3; db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True); print(db.execute('pragma user_version').fetchone()[0]); print([r[0] for r in db.execute(\"select name from sqlite_master where type='table' and name like 'alliance_ranking_%' order by name\")])"
+'@
+    alliance_bundle_list = "unzip -l /tmp/doac-dev/incoming/lastwar-client-bundle.zip | head -40"
+    alliance_bundle_validate = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/bundle-check.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/packages"
+find "$d/packages" -maxdepth 4 -type f -printf '%P %s\n' | sort
+mkdir -p "$d/client" "$d/dashboard"
+unzip -oq "$d/packages/.codex-transfer/artifacts/client-a1522ef.zip" -d "$d/client"
+unzip -oq "$d/packages/.codex-transfer/artifacts/dashboard-9e67051.zip" -d "$d/dashboard"
+test -f "$d/client/go.mod"
+test -f "$d/client/internal/analytics/collector.go"
+test -f "$d/dashboard/tools/run_alliance_power.py"
+echo bundle-ok
+'@
+    alliance_bundle_gofmt = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/bundle-gofmt.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/packages"
+mkdir -p "$d/client"
+unzip -oq "$d/packages/.codex-transfer/artifacts/client-a1522ef.zip" -d "$d/client"
+cd "$d/client"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -d internal/analytics/alliance.go internal/analytics/config.go
+echo gofmt-check-complete
+'@
+    alliance_runner_state = @'
+set -eu
+systemctl --user cat doac-thp-mvp.service
+systemctl --user cat doac-vs-mvp.service
+find /home/opc/doac-private -maxdepth 1 -type f -printf '%f\n' | sort | grep -E '^(collector|alliance|session|config|doac-history)' || true
+systemctl --user is-active doac-dashboard.service
+systemctl --user is-active doac-dashboard-tunnel.service
+'@
+    alliance_current_bundle_checks = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/alliance-check.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/packages"
+mkdir -p "$d/client"
+unzip -oq "$d/packages/.codex-transfer/artifacts/client-a1522ef.zip" -d "$d/client"
+for path in internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go; do
+  install -m 0644 "$d/packages/$path" "$d/client/$path"
+done
+cd "$d/client"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go
+/home/opc/.local/bin/go test -count=1 ./...
+/home/opc/.local/bin/go vet ./...
+'@
 }
 $operation = [string]$manifest.operation
 if (!$commands.ContainsKey($operation)) { throw 'unsupported read-only inspection operation' }

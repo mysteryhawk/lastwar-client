@@ -71,7 +71,11 @@ try {
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
         Copy-Item -LiteralPath $file.Full -Destination $destination
     }
-    Compress-Archive -Path (Join-Path $contentRoot '*') -DestinationPath $archive -CompressionLevel Optimal
+    # -Path with '*' silently omits the hidden .codex-transfer staging tree.
+    # Enumerate with -Force so reviewed generated artefacts are actually sent.
+    $archiveEntries = @(Get-ChildItem -Force -LiteralPath $contentRoot | Select-Object -ExpandProperty FullName)
+    if ($archiveEntries.Count -eq 0) { throw 'bundle staging directory is empty' }
+    Compress-Archive -LiteralPath $archiveEntries -DestinationPath $archive -CompressionLevel Optimal
     & $ssh -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHostsPath" -- 'opc@140.238.71.236' 'umask 077; mkdir -p /tmp/doac-dev/incoming; test -d /tmp/doac-dev/incoming'
     if ($LASTEXITCODE -ne 0) { throw "remote staging preparation failed with exit code $LASTEXITCODE" }
     & $scp -i $keyPath -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHostsPath" -- $archive 'opc@140.238.71.236:/tmp/doac-dev/incoming/'

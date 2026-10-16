@@ -9,6 +9,7 @@ import (
 	"lastwar-client/internal/session"
 	"lastwar-client/internal/sfs"
 	"math"
+	"sort"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type AllianceSnapshot struct {
 	CompleteCohort    bool              `json:"complete_cohort"`
 	Validation        string            `json:"validation"`
 	RejectedRows      int               `json:"rejected_rows"`
+	ResponseFields    []string          `json:"response_fields,omitempty"`
 	Alliances         []AllianceRecord  `json:"alliances"`
 }
 
@@ -53,7 +55,7 @@ func allianceIdentifier(o *sfs.SFSObject) string {
 }
 
 func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error {
-	if !q.AllianceRanking || q.Command != "alliance.rank" || q.Payload != "serverRanking" ||
+	if !q.AllianceRanking || q.Command != "alliance.rank" || q.Payload != "allianceRanking" ||
 		q.ValueField != "fightpower" {
 		return errInvalidQuery
 	}
@@ -87,6 +89,12 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 	}
 	raw, present := p.Get(q.Payload)
 	if !present {
+		for _, key := range p.Keys() {
+			if !sfs.IsSensitiveSFSKey(key) {
+				s.ResponseFields = append(s.ResponseFields, key)
+			}
+		}
+		sort.Strings(s.ResponseFields)
 		s.Status = "missing_payload"
 		return nil
 	}
