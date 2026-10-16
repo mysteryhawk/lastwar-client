@@ -155,12 +155,27 @@ aid=Path('/home/opc/doac-private/alliance-id').read_text(encoding='utf-8').strip
 with history.connect('/home/opc/doac-private/doac-history.sqlite3') as db:
     d=history.doac_review_groups(db,1723,aid,80_000_000,7_200_000)
 print({'name':d['alliance_name'],'member_count':d['member_count'],
+       'alliance_rank':d.get('alliance_rank'),
        'member_count_verified':d['member_count_verified'],'total_power':d['total_power'],
        'average_power':d['average_power'],'top200_thp_count':d['top200_thp_count'],
        'top_five_count':len(d['top_five_thp']),'elapsed_vs_days':d['elapsed_days'],
        'groups':{k:len(v) for k,v in d['groups'].items()},
        'insufficient':len(d['insufficient'])})
 PY
+'@
+    dashboard_alliance_rank_ui_checks = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/dashboard-rank-ui.XXXXXX)
+trap 'rm -rf "$d"' EXIT
+cp -a /home/opc/doac-dashboard/. "$d/dashboard"
+unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/overlay"
+for path in dashboard/history.py dashboard/test_dashboard.py dashboard/templates/compare.html dashboard/templates/opponents.html; do
+  install -m 0644 "$d/overlay/$path" "$d/dashboard/$path"
+done
+cd "$d/dashboard"
+/home/opc/doac-dashboard/.venv/bin/python -m unittest discover -s tools -p 'test_*.py'
+/home/opc/doac-dashboard/.venv/bin/python -m unittest dashboard.test_dashboard
+/home/opc/doac-dashboard/.venv/bin/python -m py_compile dashboard/history.py dashboard/test_dashboard.py
 '@
     alliance_current_bundle_checks = @'
 set -eu
@@ -207,6 +222,18 @@ if command -v luac >/dev/null 2>&1; then luac -l -l "$f" | head -260 || true; fi
 set -eu
 find /home/opc/lastwar-lua/fixed /home/opc/lastwar-lua/decompiled -maxdepth 3 -type f \( -name '00457*' -o -iname '*AllianceRankData*' \) -print
 for f in $(find /home/opc/lastwar-lua/decompiled -maxdepth 3 -type f \( -name '00457*' -o -iname '*AllianceRankData*' \) | head -4); do echo FILE:$f; sed -n '1,320p' "$f"; done
+'@
+    lua_alliance_setrank_refs = @'
+set -eu
+grep -Ei 'AllianceRank|SetRank|selfRanking|allianceRanking' /home/opc/lastwar-lua/modules.tsv /home/opc/lastwar-lua/matches.tsv | head -320
+find /home/opc/lastwar-lua/decompiled -type f -maxdepth 4 -print0 2>/dev/null | xargs -0 grep -HnE 'AllianceRankData|SetRank|selfRanking|allianceRanking' 2>/dev/null | head -320 || true
+'@
+    lua_rank_manager_alliance = "sed -n '65,150p' /home/opc/lastwar-lua/decompiled/managers/RankDataManager.lua"
+    lua_alliance_rank_message_decompile = @'
+set -eu
+f=$(find /home/opc/lastwar-lua/fixed -type f -name '01044.luac' | head -1)
+test -n "$f"
+java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$f" | head -260
 '@
 }
 $operation = [string]$manifest.operation

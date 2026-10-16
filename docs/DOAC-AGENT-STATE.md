@@ -1022,3 +1022,24 @@ opponent member counts as unknown until the list-position/self-ranking semantics
 legitimate roster source are proved. Immediate next action is to commit/push the clean
 export fix and trace the Lua list parser that calls `SetRank`, without another live
 authentication attempt.
+
+## Alliance rank semantics proved and deployed (2026-10-16)
+
+Offline decompilation closed the row-rank gap. `AllianceRankListMessage:HandleMessage`
+passes the exact `alliance.rank` response to
+`RankDataManager:ParseAllianceRankData(0, RankType.AlliancePower, t)`. The manager
+iterates `allianceRanking` and calls `AllianceRankData:SetRank(k)`, proving the displayed
+rank is the one-based array position. The collector now assigns that position for SFS
+array payloads; the legacy object fallback still requires an explicit row rank.
+
+The uncached full Go suite and `go vet ./...` passed in disposable VM space. A reviewed
+install replaced the collector with a rollback copy and made no game request. The
+already retained, validated 50-row snapshot was backed up and backfilled transactionally
+from its preserved array order. DoAC is power rank 6. The dashboard read model confirms
+rank 6 alongside the previously verified 15,087,816,279 total power and 100-person
+observed participant cohort.
+
+Immediate next action is to commit/push the array-rank parser and documentation. Do not
+make another alliance login request merely to reconfirm static array semantics. Member
+count remains absent from `alliance.rank`; server-1724 totals still need a legitimate
+server-1724 source session or proven routing.

@@ -165,17 +165,20 @@ toolchain. `AllianceRankData:ParseData` explicitly maps `message.uid` to the all
 entity's `uid`; it also maps `leader`, `abbr`, `alliancename`, `fightpower`, `armyKill`,
 `icon`, `country`, `srcServer`/`serverId` and `score`. This independently proves the live
 row's `uid` is the alliance identifier. Rank is assigned separately by `SetRank`; neither
-rank position nor name is used as identity.
+rank position nor name is used as identity. `AllianceRankListMessage:HandleMessage`
+passes this exact response to `ParseAllianceRankData(0, RankType.AlliancePower, t)`.
+That manager iterates the `allianceRanking` array and calls `SetRank(k)` for each row, so
+the displayed rank is the one-based array position. The separate `selfRanking` field is
+not needed to rank the returned cohort and remains uninterpreted.
 
 No target `serverId` appears in the request shape. A request on the current server-1723
 session can therefore be evaluated only for that session's ranking scope. Static evidence
 does not authorise or prove arbitrary-server alliance-rank access for server 1724. The
 implemented schema-v2 exporter keeps alliance IDs and `fightpower` in a specialised
 alliance-entity contract; player UID records are not repurposed. It rejects source/target
-server mismatch before sending any request. The collection name is live-verified, but
-row identity/type coverage remains unresolved: the first corrected response contained
-50 rows and all were rejected by the strict synthetic row contract. No values were
-imported and another login must wait for an offline, value-free row-shape diagnostic.
+server mismatch before sending any request. The collection name, row identity and
+`fightpower:Long` are live-verified: the final bounded response contained 50 valid rows
+with zero rejections and was imported after strict validation.
 
 The existing `PlayerRankData` path also maps `alliancename` and `abbr`. These two labels
 are now allowlisted on normal `rank.get` player records so future scoped scouting captures

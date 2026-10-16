@@ -234,6 +234,7 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 		return nil
 	}
 	var items []sfs.SFSValue
+	rankByPosition := false
 	switch collection := raw.Val.(type) {
 	case *sfs.SFSArray:
 		if collection == nil {
@@ -241,6 +242,7 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 			return errors.New("nil alliance ranking array")
 		}
 		items = collection.Items()
+		rankByPosition = true
 	case *sfs.SFSObject:
 		if collection == nil {
 			s.Status = "partial"
@@ -257,7 +259,7 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 	s.RowShape = allianceRowShape(raw, items)
 	s.PayloadPresent = true
 	seen := map[string]bool{}
-	for _, value := range items {
+	for index, value := range items {
 		row, ok := value.Val.(*sfs.SFSObject)
 		if !ok || row == nil {
 			rejectAlliance(s, "wrong_row_type")
@@ -297,7 +299,10 @@ func ParseAllianceSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject) error
 			rejectAlliance(s, "server_mismatch")
 			continue
 		}
-		if rank, ok := integer(row, "rank"); ok && rank > 0 {
+		if rankByPosition {
+			rank := int64(index + 1)
+			record.Rank = &rank
+		} else if rank, ok := integer(row, "rank"); ok && rank > 0 {
 			record.Rank = &rank
 		}
 		s.Alliances = append(s.Alliances, record)

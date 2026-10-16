@@ -18,6 +18,7 @@ marker=/home/opc/doac-private/captures/alliance-uid-fix-cfdded6.attempted
 backup=/home/opc/doac-private/backups/alliance-uid-fix-cfdded6-predeploy
 recovery=/home/opc/doac-private/captures/alliance-uid-fix-cfdded6.recovered
 installed=/home/opc/doac-private/captures/alliance-clean-export.installed
+rank_installed=/home/opc/doac-private/captures/alliance-array-rank.installed
 capture=/home/opc/doac-private/captures/alliance-power-20261016T085756653799Z.jsonl
 db=/home/opc/doac-private/doac-history.sqlite3
 if test -e "$marker" && test ! -e "$recovery"; then
@@ -71,7 +72,68 @@ PY
   exit 0
 fi
 if test -e "$marker" && test -e "$recovery"; then
-  test ! -e "$installed"
+  if test -e "$installed"; then
+    test ! -e "$rank_installed"
+    test -s "$bundle"
+    rank_backup=/home/opc/doac-private/backups/alliance-array-rank-predeploy
+    test ! -e "$rank_backup"
+    root=$(mktemp -d /tmp/doac-dev/alliance-rank-install.XXXXXX)
+    trap 'rm -rf "$root"' EXIT
+    git clone --quiet --depth 1 --branch feature/interactive-continuous-reader https://github.com/mysteryhawk/lastwar-client.git "$root/client"
+    unzip -oq "$bundle" -d "$root/overlay"
+    install -m 0644 "$root/overlay/internal/analytics/alliance.go" "$root/client/internal/analytics/alliance.go"
+    install -m 0644 "$root/overlay/internal/analytics/analytics_test.go" "$root/client/internal/analytics/analytics_test.go"
+    cd "$root/client"
+    /home/opc/.local/lib/go1.27.2/bin/gofmt -w internal/analytics/alliance.go internal/analytics/analytics_test.go
+    /home/opc/.local/bin/go test -count=1 ./internal/analytics ./internal/app ./internal/sfs
+    /home/opc/.local/bin/go vet ./internal/analytics ./internal/app ./internal/sfs
+    /home/opc/.local/bin/go build -o "$root/lastwar-client" ./cmd/lastwar-client
+    mkdir -p "$rank_backup"
+    cp -p /home/opc/doac-private/bin/lastwar-client "$rank_backup/active-lastwar-client"
+    cd /home/opc/doac-dashboard
+    /home/opc/doac-dashboard/.venv/bin/python - <<'PY'
+import json, os, sqlite3
+from pathlib import Path
+from tools.ingest_analytics import validate_alliance
+
+latest=Path('/home/opc/doac-private/captures/alliance-power-latest.jsonl')
+db_path=Path('/home/opc/doac-private/doac-history.sqlite3')
+backup=Path('/home/opc/doac-private/backups/alliance-array-rank-predeploy/doac-history-pre-rank.sqlite3')
+lines=latest.read_text(encoding='utf-8').splitlines()
+if len(lines)!=1:
+    raise SystemExit('latest alliance snapshot must contain exactly one line')
+doc=validate_alliance(json.loads(lines[0]))
+if len(doc['alliances'])!=50 or any(r.get('rank') is not None for r in doc['alliances']):
+    raise SystemExit('alliance snapshot is not the expected unranked 50-row cohort')
+for rank,row in enumerate(doc['alliances'],1):
+    row['rank']=rank
+doc=validate_alliance(doc)
+aid=Path('/home/opc/doac-private/alliance-id').read_text(encoding='utf-8').strip()
+source=sqlite3.connect(f'file:{db_path}?mode=ro',uri=True)
+target=sqlite3.connect(backup); source.backup(target); target.close(); source.close()
+os.chmod(backup,0o600)
+with sqlite3.connect(db_path) as db:
+    db.row_factory=sqlite3.Row
+    snap=db.execute("select id from alliance_ranking_snapshots where target_server=1723 order by collected_at desc,id desc limit 1").fetchone()
+    rows=db.execute('select alliance_id,rank from alliance_ranking_records where snapshot_id=?',(snap['id'],)).fetchall()
+    if len(rows)!=50 or {r['alliance_id'] for r in rows}!={r['alliance_id'] for r in doc['alliances']} or any(r['rank'] is not None for r in rows):
+        raise SystemExit('database alliance cohort is not the expected unranked snapshot')
+    with db:
+        for row in doc['alliances']:
+            db.execute('update alliance_ranking_records set rank=? where snapshot_id=? and alliance_id=?',
+                       (row['rank'],snap['id'],row['alliance_id']))
+latest.write_text(json.dumps(doc,separators=(',',':'))+'\n',encoding='utf-8')
+os.chmod(latest,0o600)
+tracked=next(r for r in doc['alliances'] if r['alliance_id']==aid)
+print({'status':'ok','alliance_count':len(doc['alliances']),
+       'tracked':{'name':tracked['name'],'abbr':tracked['abbr'],'rank':tracked['rank'],
+                  'total_power':tracked['total_power']}})
+PY
+    install -m 0700 "$root/lastwar-client" /home/opc/doac-private/bin/lastwar-client
+    touch "$rank_installed"
+    echo 'alliance array-rank collector installed; retained snapshot backfilled; no game request sent'
+    exit 0
+  fi
   test -s "$bundle"
   clean_backup=/home/opc/doac-private/backups/alliance-clean-export-predeploy
   test ! -e "$clean_backup"

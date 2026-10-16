@@ -156,7 +156,8 @@ func TestAllianceRankingHasSeparateEntityContractAndSameServerGuard(t *testing.T
 	snapshot, err := collector.CollectAllianceRanking(context.Background(), q)
 	if err != nil || snapshot.SchemaVersion != 2 || snapshot.Status != "ok" ||
 		len(snapshot.Alliances) != 1 || snapshot.Alliances[0].AllianceID != "alliance-A" ||
-		snapshot.Alliances[0].TotalPower != 123456789 || snapshot.CompleteCohort {
+		snapshot.Alliances[0].TotalPower != 123456789 || snapshot.CompleteCohort ||
+		snapshot.Alliances[0].Rank == nil || *snapshot.Alliances[0].Rank != 1 {
 		t.Fatalf("alliance snapshot=%+v err=%v", snapshot, err)
 	}
 	var exported bytes.Buffer
