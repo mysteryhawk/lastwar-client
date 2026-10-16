@@ -870,3 +870,15 @@ The dashboard implementation and its 74 Python tests pass locally. Immediate nex
 is to commit/push this parser milestone. A separate, specialised alliance-ranking export
 contract should be implemented before issuing `alliance.rank`; do not overload the
 player-UID snapshot contract with alliance entities.
+
+Client commit `f3e1843` and dashboard commit `3bb6f7e` are pushed. The dashboard alliance
+overview was subsequently deployed after its isolated 45+29-test VM gate; the live
+database and collector binary were preserved. The first gate stopped safely when the VM
+could not anonymously clone the private dashboard repository, then the established
+copy-and-overlay gate succeeded. The deployment helper is fixed to this reviewed commit
+and records the private rollback archive in the dashboard agent state.
+
+No updated game client was deployed and no game request was made. Opponent alliance names
+will remain IDs until a future single bounded server-1724 rank refresh uses the new parser.
+Immediate client action remains the specialised `alliance.rank` entity contract; current
+static evidence supports server-1723 scope only.
