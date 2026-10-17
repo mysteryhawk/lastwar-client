@@ -1089,3 +1089,25 @@ was stale after the dashboard deployment restart. The fixed inspector now verifi
 current public `/login` endpoint as well as reading the address. The replacement returned
 HTTP 200 at `https://aid-whereas-shaft-reserve.trycloudflare.com/`. Quick Tunnel addresses
 remain ephemeral and must be re-read after a tunnel restart.
+
+## Alpha review checkpoint (2026-10-17)
+
+Client head `ab796f0` preserves explicit zero alliance member counts while distinguishing
+them from an absent field. The independent senior review accepted that fix and the
+cross-server alliance detail scoping at exact head `ab796f0`; the client currently has
+no unresolved review finding. The full Go suite and `go vet ./...` had passed in the
+disposable VM gate for this head. No additional live request was made during review.
+
+The paired dashboard review found one remaining VS denominator defect, now corrected
+offline with explicit per-weekly-snapshot collection context and regression coverage.
+The dashboard correction has passed 35 dashboard tests and 67 tool/importer/runner
+tests locally and is awaiting commit/push plus a fresh independent exact-head review.
+Do not repeat live alliance probing: server-1724 already produced ten validated named,
+power/member detail records, and the remaining two candidates are an accepted bounded-
+batch limitation. Historical S3 name aliases remain unresolved for twelve players and
+must not be guessed.
+
+Immediate next action: publish the paired dashboard checkpoint and request independent
+review of both exact PR heads. Merge only if accepted. If accepted, deploy the reviewed
+dashboard schema additively and verify the existing services without starting a game
+session; a later normal VS collection will populate explicit context.
