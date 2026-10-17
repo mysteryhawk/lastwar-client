@@ -457,6 +457,61 @@ for f in $(find /home/opc/lastwar-lua/fixed -type f -name '*.luac'); do
   fi
 done
 '@
+    alliance_detail_fix_state = @'
+set -eu
+printf 'bundle='; test -s /tmp/doac-dev/incoming/lastwar-client-bundle.zip && echo present || echo missing
+unzip -l /tmp/doac-dev/incoming/lastwar-client-bundle.zip 2>/dev/null | grep -E 'client-15fe875.zip' || true
+d=$(mktemp -d /tmp/doac-dev/detail-fix-inspect.XXXXXX); trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d"
+sha256sum "$d/.codex-transfer/artifacts/client-15fe875.zip"
+printf 'marker='; test -e /home/opc/doac-private/captures/alliance-detail-fix-15fe875.attempted && echo present || echo absent
+printf 'backup='; test -e /home/opc/doac-private/backups/alliance-detail-fix-15fe875-predeploy && echo present || echo absent
+free -m | awk 'NR==2 {print "available_mb=" $7}'
+df -Pk /home/opc | awk 'NR==2 {print "available_kb=" $4}'
+for timer in doac-thp-mvp.timer doac-vs-mvp.timer doac-base-level.timer doac-thp-benchmark.timer doac-events.timer; do printf '%s=' "$timer"; systemctl --user is-active "$timer" 2>/dev/null || true; done
+for service in doac-thp-mvp.service doac-vs-mvp.service doac-base-level.service doac-thp-benchmark.service doac-events.service; do printf '%s=' "$service"; systemctl --user is-active "$service" 2>/dev/null || true; done
+'@
+    alliance_detail_fix_gofmt = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/detail-fix-gofmt.XXXXXX); trap 'rm -rf "$d"' EXIT
+unzip -oq /tmp/doac-dev/incoming/lastwar-client-bundle.zip -d "$d/packages"
+unzip -oq "$d/packages/.codex-transfer/artifacts/client-15fe875.zip" -d "$d/client"
+cd "$d/client"
+/home/opc/.local/lib/go1.27.2/bin/gofmt -d internal/analytics/alliance.go internal/analytics/analytics_test.go internal/analytics/types.go
+'@
+    dashboard_contract_overlay_checks = @'
+set -eu
+d=$(mktemp -d /tmp/doac-dev/dashboard-contract.XXXXXX); trap 'rm -rf "$d"' EXIT
+cp -a /home/opc/doac-dashboard "$d/dashboard"
+unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/overlay"
+for path in tools/ingest_analytics.py tools/test_ingest_analytics.py tools/test_import_historical_vs.py tools/test_account_safety.py tools/test_run_opponent_alliance_details.py dashboard/test_historical_vs.py docs/SNAPSHOT-CONTRACT.md; do
+  install -m 0644 "$d/overlay/$path" "$d/dashboard/$path"
+done
+cd "$d/dashboard"
+/home/opc/doac-dashboard/.venv/bin/python -m unittest tools.test_import_historical_vs dashboard.test_historical_vs dashboard.test_dashboard
+cd "$d/dashboard/tools"
+/home/opc/doac-dashboard/.venv/bin/python -m unittest test_ingest_analytics test_account_safety test_run_opponent_alliance_details
+/home/opc/doac-dashboard/.venv/bin/python -m py_compile ingest_analytics.py test_ingest_analytics.py
+'@
+    opponent_1724_read_model = @'
+set -eu
+cd /home/opc/doac-dashboard
+/home/opc/doac-dashboard/.venv/bin/python - <<'PY'
+from dashboard import history
+with history.connect('/home/opc/doac-private/doac-history.sqlite3') as db:
+    data=history.opponent_scout(db,1724,'thp')
+rows=[]
+for row in data['alliances']:
+    if row.get('alliance_name'):
+        rows.append({'name':row['alliance_name'],'abbr':row.get('alliance_abbr'),
+                     'total_power':row.get('total_power'),'member_count':row.get('member_count'),
+                     'average_power':row.get('average_power'),
+                     'top200_thp_count':row.get('top200_thp_count'),
+                     'top_five_count':len(row.get('top_five_thp') or [])})
+print({'cards':len(data['alliances']),'named_cards':len(rows),'alliances':rows})
+PY
+curl -sS -o /dev/null -w 'opponents_http=%{http_code}\n' 'http://127.0.0.1:8080/opponents?server=1724'
+'@
 }
 $operation = [string]$manifest.operation
 if (!$commands.ContainsKey($operation)) { throw 'unsupported read-only inspection operation' }

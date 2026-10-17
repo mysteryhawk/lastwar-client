@@ -13,14 +13,22 @@
   accepts either integer field when it equals the requested target server and rejects
   conflicting values. Identity, power and member-count validation remains strict.
 - Automated verification: the complete uncached Go suite and `go vet ./...` passed on
-  the Oracle VM against a temporary overlay containing this fallback and its regression
-  tests. This is not yet live verification of the corrected parser.
+  the Oracle VM against both a temporary overlay and the exact deployed `15fe875` archive.
+- Live verification 2026-10-17: the corrected binary first accepted one guarded detail
+  response with `response_create_server_match`. After the dashboard contract fix passed
+  all tests and one end-to-end import, one further session issued the bounded ten-query
+  batch. All ten responses were `status=ok`, with one row and zero rejects; ten named
+  server-1724 alliance details now have genuine power and member counts in production.
 - Historical VS is live in the dashboard as three immutable S3 periods with 75 UID-mapped
   records each. Twelve source names remain deliberately unimported pending owner-confirmed
   name mappings; no fuzzy match is accepted automatically.
-- Exact next action: commit and publish the parser milestone, deploy the tested client,
-  then issue one guarded detail request. Only after that succeeds may the bounded ten-alliance
-  collection run. A fresh independent senior review is required before merging either PR.
+- The Cloudflare quick tunnel was restarted after its old hostname expired; the replacement
+  `/login` endpoint returned HTTP 200 at
+  `https://participating-swim-spell-bicycle.trycloudflare.com`.
+- Exact next action: obtain fresh independent senior review of both final PR heads. Twelve
+  historical source names still require owner-confirmed mappings; do not guess them. If
+  review accepts the alpha and the mappings are resolved or explicitly deferred, merge the
+  PRs as authorised, without changing production again.
 
 ## Standing operating authority (2026-10-14)
 
