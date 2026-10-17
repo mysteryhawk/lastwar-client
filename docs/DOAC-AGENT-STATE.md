@@ -29,6 +29,14 @@
   historical source names still require owner-confirmed mappings; do not guess them. If
   review accepts the alpha and the mappings are resolved or explicitly deferred, merge the
   PRs as authorised, without changing production again.
+- Independent review of heads `a9ca5e3` / `791238a` rejected merge on three precise
+  missing-data edges: failed daily VS attempts shrinking the weekly divisor, absent
+  opponent THP displayed as zero, and explicit `curMember=0` omitted from JSON. The client
+  now represents alliance detail member count as a pointer: ranking rows omit unknown
+  counts, while detail rows preserve an observed zero. The complete Go suite and vet pass
+  on a temporary Linux VM overlay. Dashboard fixes and tests are recorded in its state.
+- Revised exact next action: publish both fixes and request a fresh review. No further live
+  game call is required for these deterministic contract/read-model corrections.
 
 ## Standing operating authority (2026-10-14)
 

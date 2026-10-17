@@ -66,7 +66,7 @@ type AllianceRecord struct {
 	ServerID    int32  `json:"server_id,omitempty"`
 	Rank        *int64 `json:"rank,omitempty"`
 	TotalPower  int64  `json:"total_power"`
-	MemberCount int64  `json:"member_count,omitempty"`
+	MemberCount *int64 `json:"member_count,omitempty"`
 }
 
 func allianceIdentifier(o *sfs.SFSObject) string {
@@ -408,7 +408,7 @@ func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject)
 	}
 	record := AllianceRecord{AllianceID: allianceID, Name: p.GetString("name"),
 		Abbr: p.GetString("abbr"), Leader: p.GetString("leaderName"), ServerID: int32(serverID),
-		TotalPower: power, MemberCount: members}
+		TotalPower: power, MemberCount: &members}
 	s.Alliances = append(s.Alliances, record)
 	s.PayloadPresent = true
 	s.Status = "ok"

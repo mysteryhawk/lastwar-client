@@ -484,7 +484,7 @@ set -eu
 d=$(mktemp -d /tmp/doac-dev/dashboard-contract.XXXXXX); trap 'rm -rf "$d"' EXIT
 cp -a /home/opc/doac-dashboard "$d/dashboard"
 unzip -oq /tmp/doac-dev/incoming/lastwar-dashboard-bundle.zip -d "$d/overlay"
-for path in tools/ingest_analytics.py tools/test_ingest_analytics.py tools/test_import_historical_vs.py tools/test_account_safety.py tools/test_run_opponent_alliance_details.py dashboard/test_historical_vs.py docs/SNAPSHOT-CONTRACT.md; do
+for path in dashboard/history.py dashboard/test_dashboard.py dashboard/templates/opponents.html dashboard/templates/opponent_alliance.html tools/ingest_analytics.py tools/test_ingest_analytics.py tools/test_import_historical_vs.py tools/test_account_safety.py tools/test_run_opponent_alliance_details.py dashboard/test_historical_vs.py; do
   install -m 0644 "$d/overlay/$path" "$d/dashboard/$path"
 done
 cd "$d/dashboard"

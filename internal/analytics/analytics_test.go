@@ -163,7 +163,8 @@ func TestAllianceDetailValidatesForeignOwnerServerAndMetrics(t *testing.T) {
 	snapshot, err := collector.CollectAllianceRanking(context.Background(), q)
 	if err != nil || snapshot.Status != "ok" || snapshot.Validation != "response_owner_server_match" ||
 		len(snapshot.Alliances) != 1 || snapshot.Alliances[0].Name != "Foreign Alliance" ||
-		snapshot.Alliances[0].ServerID != 1724 || snapshot.Alliances[0].MemberCount != 97 ||
+		snapshot.Alliances[0].ServerID != 1724 || snapshot.Alliances[0].MemberCount == nil ||
+		*snapshot.Alliances[0].MemberCount != 97 ||
 		snapshot.Alliances[0].TotalPower != 9876543210 {
 		t.Fatalf("alliance detail snapshot=%+v err=%v", snapshot, err)
 	}
@@ -202,8 +203,14 @@ func TestAllianceDetailValidatesForeignOwnerServerAndMetrics(t *testing.T) {
 	alias.PutLong("fightPower", 9876543210)
 	requester.params = alias
 	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
-	if err != nil || snapshot.Status != "ok" || snapshot.Alliances[0].MemberCount != 97 {
+	if err != nil || snapshot.Status != "ok" || snapshot.Alliances[0].MemberCount == nil ||
+		*snapshot.Alliances[0].MemberCount != 97 {
 		t.Fatalf("memberCount alias rejected: snapshot=%+v err=%v", snapshot, err)
+	}
+	alias.PutInt("memberCount", 0)
+	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
+	if err != nil || snapshot.Alliances[0].MemberCount == nil || *snapshot.Alliances[0].MemberCount != 0 {
+		t.Fatalf("explicit zero member count lost: snapshot=%+v err=%v", snapshot, err)
 	}
 }
 
