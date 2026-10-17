@@ -357,13 +357,21 @@ func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject)
 	if !powerOK {
 		power, powerOK = integer(p, "fightpower")
 	}
-	serverID, serverOK := integer(p, "ownerServerId")
+	ownerServerID, ownerServerOK := integer(p, "ownerServerId")
+	createServerID, createServerOK := integer(p, "createServer")
+	serverID, serverOK := ownerServerID, ownerServerOK
+	serverValidation := "response_owner_server_match"
+	if !serverOK && createServerOK {
+		serverID, serverOK = createServerID, true
+		serverValidation = "response_create_server_match"
+	}
+	serverConflict := ownerServerOK && createServerOK && ownerServerID != createServerID
 	members, membersOK := integer(p, "curMember")
 	if !membersOK {
 		members, membersOK = integer(p, "memberCount")
 	}
 	if allianceID == "" || allianceID != q.EntityAllianceID || !powerOK || power < 0 ||
-		!serverOK || serverID != int64(s.TargetServer) || !membersOK || members < 0 {
+		!serverOK || serverConflict || serverID != int64(s.TargetServer) || !membersOK || members < 0 {
 		s.Status = "partial"
 		s.RejectionReasons = map[string]int{}
 		if allianceID == "" {
@@ -377,9 +385,11 @@ func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject)
 			s.RejectionReasons["negative_power"] = 1
 		}
 		if !serverOK {
-			s.RejectionReasons["missing_or_wrong_owner_server_type"] = 1
+			s.RejectionReasons["missing_or_wrong_server_type"] = 1
+		} else if serverConflict {
+			s.RejectionReasons["conflicting_server_ids"] = 1
 		} else if serverID != int64(s.TargetServer) {
-			s.RejectionReasons["owner_server_mismatch"] = 1
+			s.RejectionReasons["server_mismatch"] = 1
 		}
 		if !membersOK {
 			s.RejectionReasons["missing_or_wrong_member_count_type"] = 1
@@ -402,7 +412,7 @@ func parseAllianceDetailSnapshot(s *AllianceSnapshot, q Query, p *sfs.SFSObject)
 	s.Alliances = append(s.Alliances, record)
 	s.PayloadPresent = true
 	s.Status = "ok"
-	s.Validation = "response_owner_server_match"
+	s.Validation = serverValidation
 	return nil
 }
 

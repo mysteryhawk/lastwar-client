@@ -404,6 +404,59 @@ cd "$d/dashboard/tools"
 echo PYTEST2
 /home/opc/doac-dashboard/.venv/bin/python -m unittest test_ingest_analytics test_account_safety test_run_opponent_alliance_details
 '@
+    alliance_detail_failure_diagnostic = @'
+set -eu
+python3 - <<'PY'
+import glob,json,os
+paths=sorted(glob.glob('/home/opc/doac-private/captures/opponent-alliance-details-1724-*.jsonl'))
+if not paths: raise SystemExit('no alliance-detail capture')
+path=paths[-1]
+lines=[line for line in open(path,encoding='utf-8') if line.strip()]
+print({'file':os.path.basename(path),'snapshots':len(lines)})
+for line in lines:
+ doc=json.loads(line)
+ print({'status':doc.get('status'),'response_fields':doc.get('response_fields',[]),
+        'response_other_fields':doc.get('response_other_fields',0),
+        'rejection_reasons':doc.get('rejection_reasons',{})})
+PY
+'@
+    historical_vs_unmatched_candidates = @'
+set -eu
+python3 - <<'PY'
+import difflib,json,sqlite3,unicodedata
+from pathlib import Path
+
+def normalise(value):
+    value=unicodedata.normalize('NFKD',value.casefold())
+    return ''.join(ch for ch in value if ch.isalnum() and not unicodedata.combining(ch))
+
+unmatched=json.loads(Path('/tmp/doac-dev/historical-vs/unmatched.json').read_text(encoding='utf-8'))
+db=sqlite3.connect('file:/home/opc/doac-private/doac-history.sqlite3?mode=ro',uri=True)
+row=db.execute("""SELECT id FROM analytics_snapshots
+ WHERE target_server=1723 AND metric='THP' AND command='dragon.assign.player.info'
+ AND status='ok' AND validation IN ('manual_100_name_set_verified','uid_continuity_verified')
+ ORDER BY collected_at DESC,id DESC LIMIT 1""").fetchone()
+if not row: raise SystemExit('no validated current THP snapshot')
+names=sorted({r[0] for r in db.execute('SELECT name FROM analytics_records WHERE snapshot_id=?',(row[0],)) if r[0]})
+for old in unmatched.get('unmatched',[]):
+    key=normalise(old)
+    ranked=sorted(names,key=lambda name:(-difflib.SequenceMatcher(None,key,normalise(name)).ratio(),name.casefold()))[:4]
+    print(json.dumps({'historical_name':old,'possible_current_names':ranked},ensure_ascii=False))
+print(json.dumps({'unmatched_count':len(unmatched.get('unmatched',[])),'ambiguous_count':len(unmatched.get('ambiguous',[]))}))
+PY
+'@
+    lua_create_server_trace = @'
+set -eu
+grep -RInE 'createServer|ownerServerId' /home/opc/lastwar-lua/decompiled 2>/dev/null | head -320 || true
+for f in $(find /home/opc/lastwar-lua/fixed -type f -name '*.luac'); do
+  if strings "$f" | grep -q '^createServer$'; then
+    b=$(basename "$f")
+    echo "FILE:$b"
+    grep -F "$b" /home/opc/lastwar-lua/matches.tsv || true
+    java -jar /home/opc/lastwar-lua/unluac/bin/unluac.jar "$f" 2>/dev/null | grep -C 8 -E 'createServer|ownerServerId' | head -160 || true
+  fi
+done
+'@
 }
 $operation = [string]$manifest.operation
 if (!$commands.ContainsKey($operation)) { throw 'unsupported read-only inspection operation' }

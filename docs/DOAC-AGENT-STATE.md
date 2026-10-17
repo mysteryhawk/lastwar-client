@@ -1,29 +1,26 @@
 # DoAC agent state
 
-## Alpha-candidate work in progress (2026-10-16)
+## Alpha-candidate milestone (2026-10-17)
 
-- Branch remains `feature/interactive-continuous-reader`; current pushed head before this
-  milestone is `b58a601`. The working tree adds the statically verified read-only
-  `get.al.info {allianceId: Utf}` query and a schema-v2 alliance-detail response parser.
-- Static live-client evidence is confirmed: `GetAllianceInfoMessage` sends only the
-  alliance ID; its handler checks `ownerServerId`; `AllianceBaseInfo:ParseDataNew` reads
-  `uid`, `name`, `abbr`, `leaderName`, `fightPower`, `curMember` and `ownerServerId`.
-  The collector accepts cross-server detail only when the response alliance ID and
-  owner server exactly match the requested entity and target server.
+- Branch `feature/interactive-continuous-reader`; pushed head entering this milestone is
+  `03a8434`. Production currently runs that client alongside dashboard head `34064b5`.
+- Live 2026-10-16: one bounded server-1724 `get.al.info` request authenticated and
+  returned the requested alliance ID, name, abbreviation, `fightPower`, `curMember` and
+  `createServer`; no authentication stop was triggered. The strict parser rejected the
+  response solely because `ownerServerId` was absent, so no alliance detail was imported.
+- Static Lua inspection now confirms `AllianceBaseInfo:ParseDataNew` stores both fields
+  and the game UI repeatedly uses `createServer or ownerServerId`. The parser therefore
+  accepts either integer field when it equals the requested target server and rejects
+  conflicting values. Identity, power and member-count validation remains strict.
 - Automated verification: the complete uncached Go suite and `go vet ./...` passed on
-  the Oracle VM using a temporary overlay; VM Go 1.27.2 reports no gofmt difference.
-  Live 2026-10-16: one authenticated session sent ten bounded `get.al.info` requests for
-  already observed server-1724 alliance IDs. Authentication and transport succeeded, but
-  every response failed the strict expected identity/metric shape; no detail was imported.
-  The parser now emits only allowlisted field names and fixed rejection-reason labels on
-  this failure path. The exact next live step is one request, not another ten-row batch.
-- Senior alpha review of the previous heads rejected merge on account concurrency,
-  persistent authentication-stop handling, historical-member denominator inflation and
-  formatting. The dashboard working tree now addresses the first three; this client
-  milestone addresses the formatting finding. A fresh independent review is required.
-- Exact next action: publish the reviewed changes, deploy a temporary/tested client
-  build, then make one guarded authenticated session containing a bounded set of
-  foreign-alliance detail requests. On authentication rejection, stop immediately.
+  the Oracle VM against a temporary overlay containing this fallback and its regression
+  tests. This is not yet live verification of the corrected parser.
+- Historical VS is live in the dashboard as three immutable S3 periods with 75 UID-mapped
+  records each. Twelve source names remain deliberately unimported pending owner-confirmed
+  name mappings; no fuzzy match is accepted automatically.
+- Exact next action: commit and publish the parser milestone, deploy the tested client,
+  then issue one guarded detail request. Only after that succeeds may the bounded ten-alliance
+  collection run. A fresh independent senior review is required before merging either PR.
 
 ## Standing operating authority (2026-10-14)
 

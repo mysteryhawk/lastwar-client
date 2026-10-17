@@ -173,9 +173,26 @@ func TestAllianceDetailValidatesForeignOwnerServerAndMetrics(t *testing.T) {
 	if err == nil || snapshot.Status != "partial" || len(snapshot.Alliances) != 0 {
 		t.Fatalf("foreign owner mismatch accepted: snapshot=%+v err=%v", snapshot, err)
 	}
-	if snapshot.RejectionReasons["owner_server_mismatch"] != 1 ||
+	if snapshot.RejectionReasons["server_mismatch"] != 1 ||
 		!reflect.DeepEqual(snapshot.ResponseFields, []string{"abbr", "curMember", "fightPower", "leaderName", "name", "ownerServerId", "uid"}) {
 		t.Fatalf("unsafe or incomplete detail diagnostic: %+v", snapshot)
+	}
+	createServerOnly := sfs.NewSFSObject()
+	createServerOnly.PutUtfString("uid", "alliance-1724-A")
+	createServerOnly.PutUtfString("name", "Foreign Alliance")
+	createServerOnly.PutInt("createServer", 1724)
+	createServerOnly.PutInt("curMember", 97)
+	createServerOnly.PutLong("fightPower", 9876543210)
+	requester.params = createServerOnly
+	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
+	if err != nil || snapshot.Status != "ok" || snapshot.Validation != "response_create_server_match" ||
+		snapshot.Alliances[0].ServerID != 1724 {
+		t.Fatalf("createServer fallback rejected: snapshot=%+v err=%v", snapshot, err)
+	}
+	createServerOnly.PutInt("ownerServerId", 1723)
+	snapshot, err = collector.CollectAllianceRanking(context.Background(), q)
+	if err == nil || snapshot.RejectionReasons["conflicting_server_ids"] != 1 {
+		t.Fatalf("conflicting server identities accepted: snapshot=%+v err=%v", snapshot, err)
 	}
 	alias := sfs.NewSFSObject()
 	alias.PutUtfString("uid", "alliance-1724-A")

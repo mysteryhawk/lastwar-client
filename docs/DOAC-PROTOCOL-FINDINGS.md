@@ -10,10 +10,12 @@ Current VM Lua evidence maps `MsgDefines.GetAllianceInfo` to `get.al.info` and
 `Net/Msgs/GetAllianceInfoMessage.luac`. Its request contains one UTF string,
 `allianceId`. The handler passes the response through
 `AllianceTempListManager:RefreshAllianceData`, then calls the alliance UI with the
-returned `ownerServerId` and `uid`. `AllianceBaseInfo:ParseDataNew` consumes `uid`,
-`name`, `abbr`, `leaderName`, `fightPower`, `curMember` and `ownerServerId` among other
-fields. This justifies a bounded read-only entity-detail query and strict returned-owner
-validation; it does not yet constitute a live server-1724 response.
+returned `ownerServerId` or `createServer` and `uid`. `AllianceBaseInfo:ParseDataNew` consumes `uid`,
+`name`, `abbr`, `leaderName`, `fightPower`, `curMember`, `createServer` and
+`ownerServerId` among other fields. The UI consistently uses `createServer` as a
+fallback when `ownerServerId` is absent. A bounded live server-1724 response on
+2026-10-16 returned the expected identity and metrics with `createServer` only; the
+collector therefore validates either server field and rejects conflicting values.
 
 ## Live verification — 2026-10-11
 

@@ -74,7 +74,7 @@ func AllianceRankQuery(isMerge int32, period string) (Query, error) {
 
 // AllianceDetailQuery follows GetAllianceInfoMessage. Static Lua evidence
 // shows one allianceId UTF string request; the response identifies its
-// ownerServerId and exposes the alliance's name, member count and fightPower.
+// ownerServerId or createServer and exposes the alliance's name, member count and fightPower.
 func AllianceDetailQuery(allianceID, period string) (Query, error) {
 	if allianceID == "" || allianceID == "0" || len(allianceID) > 128 || period == "" {
 		return Query{}, errInvalidQuery
