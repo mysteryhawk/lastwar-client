@@ -38,8 +38,7 @@ import (
 //     "delete_account_status", "forbidden_froce_merge", "isUseLz4", "isAll", "count", "time",
 //     "clientseq", "firstCmd", "serverId".
 //   - Entity/gameplay identifiers that identify something but aren't bearer credentials --
-//     the same class sfsobject.go's own top comment already carves "gameUid" out for
-//     ("identifies an account but isn't a bearer credential by itself"): "gameUid" itself,
+//     stable identifiers may also be sensitive even when they are not bearer credentials;
 //     "zn" (zone name), "uuid" (a building instance id, buildings.go), "uid"
 //     (a visitor/entity id, visitors.go), "uids" (a comma-joined list of mail message ids,
 //     mail.go), "type"/"action"/"option"/"operate"/"scienceId" (numeric gameplay
@@ -73,16 +72,19 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"CoreV":                 true,
 	"count":                 true,
 	"country":               true,
-	"dataConfigMd5":         true,
 	"deeplinkParams":        true,
 	"delete_account_status": true,
+	"end":                   true, // Read-only season leaderboard range bound.
+	"event_id":              true, // Public season event selector, not a secret identity.
 	"firstCmd":              true,
 	"forbidden_froce_merge": true,
 	"fromCountry":           true,
-	"gameUid":               true,
 	"gmLogin":               true,
 	"google_available":      true,
+	"global":                true, // Public ranking scope selector.
+	"grabTimes":             true, // Meteorite round index.
 	"isAll":                 true,
+	"ismerge":               true, // Local/merged alliance-ranking scope selector.
 	"isUseLz4":              true,
 	"KCPMode":               true,
 	"lang":                  true,
@@ -94,16 +96,20 @@ var knownNonSensitiveSFSKeys = map[string]bool{
 	"p":                     true,
 	"packageName":           true,
 	"packageSign":           true,
+	"pageSize":              true, // Public season ranking page size.
 	"pf":                    true,
 	"pfId":                  true,
 	"platform":              true,
 	"psh":                   true,
 	"r":                     true,
+	"rank_type":             true, // Public season ranking type.
 	"referrer":              true,
 	"resVersion":            true,
 	"scienceId":             true,
 	"SecurityCode":          true,
 	"serverId":              true,
+	"start":                 true, // Read-only season leaderboard range bound.
+	"startRank":             true, // Read-only meteorite ranking range bound.
 	"suggestCountry":        true,
 	"time":                  true,
 	"timeoffset":            true,

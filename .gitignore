@@ -58,3 +58,14 @@ capture.pcap
 
 # Node / Mintlify docs tooling (docs/package.json)
 node_modules/
+
+# Private analytics snapshots and history databases
+*.jsonl
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.sqlite-*
+__pycache__/
+analytics.local.json
+.codex-transfer/

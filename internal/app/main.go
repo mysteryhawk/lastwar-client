@@ -6,11 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"lastwar-client/internal/analytics"
 	"lastwar-client/internal/auth"
 	"lastwar-client/internal/crypto"
 	"lastwar-client/internal/game"
 	"lastwar-client/internal/gsl"
 	"lastwar-client/internal/session"
+	"lastwar-client/internal/sfs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -72,6 +74,8 @@ func Run() {
 	codePipe := fs.String("code-pipe", "", "path to a FIFO to read the verification code from (blocks open until a writer connects); if empty, reads from stdin")
 	collect := fs.Bool("collect", false, "collect resources from every confirmed building type, plus the Armed Truck/Overlord idle rewards, greeting city visitors, helping alliance members, claiming all mail and alliance gifts, donating to the recommended alliance tech, and both once-a-day VIP claims, after login")
 	listBuildings := fs.Bool("list-buildings", false, "print every owned building's details (a summary line, a per-type line, and a per-instance line with uuid/level/pointId and a full raw redacted dump -- not just id/type/level) to stdout. NOTE: this print already happens by DEFAULT whenever -collect is NOT passed -- this flag only matters when -collect IS also passed, where it forces the same print to happen alongside collection instead of being skipped; the process still exits after -collect/-list-buildings finish (assuming -collect, if passed, didn't fail fatally first) unless -interactive is also set")
+	analyticsPath := fs.String("analytics", "", "read-only analytics config: export UID-keyed JSONL and exit; incompatible with -collect, -run-feature, -email and -interactive")
+	memberTHPOutput := fs.String("member-thp-output", "", "one-shot read-only server-1723 own-alliance THP probe; exclusively creates a private JSON file and may be combined with -email for first-time verification")
 	interactive := fs.String("interactive", "", "stay connected and read ad-hoc test commands from this control FIFO instead of exiting; only flat scalar param values (strings/bools/numbers) are supported -- nested JSON objects/arrays are rejected with a logged error and abort the whole send (see interactive.go)")
 
 	csIP := fs.String("cs-ip", "", "skip normal login; reconnect directly to this ip (pipe-delimited ok) using an already-known role (from accountArr/push.account.login.new). Optional when an access token is given (-cs-at or a session config): without -cs-ip/-cs-port or a session config ip/port, GSL getserverlist looks the role's game server up, and it does so again if the given address doesn't answer")
@@ -168,6 +172,13 @@ func Run() {
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(*logLevel)})))
+
+	if *memberTHPOutput != "" {
+		if *collect || *listBuildings || *runFeature != "" || *interactive != "" || *analyticsPath != "" || *ownDeviceSession != "" {
+			slog.Error("-member-thp-output cannot be combined with gameplay, building-output, interactive, general analytics or own-device-session flags")
+			os.Exit(1)
+		}
+	}
 
 	if *ownDeviceSession != "" {
 		if err := writeOwnDeviceSession(gsl.DefaultHTTPClient(), *ownDeviceSession); err != nil {
@@ -277,6 +288,20 @@ func Run() {
 	// no-op the rest of this file's flags don't rely on either.
 	warnIfDecodeLabelIgnored(*decodeStream, *decodeLabel)
 
+	var analyticsCfg *analytics.Config
+	if *analyticsPath != "" {
+		if *collect || *runFeature != "" || *interactive != "" || *email != "" {
+			slog.Error("-analytics cannot be combined with gameplay, interactive or account-binding flags")
+			os.Exit(1)
+		}
+		var err error
+		analyticsCfg, err = analytics.LoadConfig(*analyticsPath)
+		if err != nil {
+			slog.Error("analytics configuration failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	if *noConfig && *configPath != "" {
 		slog.Warn("ignoring -config because -no-config is also set")
 	}
@@ -286,11 +311,11 @@ func Run() {
 	if !*noConfig {
 		cfg, cfgSource = loadEffectiveConfig(*configPath)
 	}
-	var cfgAppVersion, cfgVersionCode string
+	var cfgAppVersion, cfgVersionCode, cfgResVersion, cfgLoginParamsBase64 string
 	var cfgFeatures map[string]bool
 	var cfgDuelPolicy map[string]string
 	if cfg != nil {
-		cfgAppVersion, cfgVersionCode, cfgFeatures = cfg.AppVersion, cfg.VersionCode, cfg.Features
+		cfgAppVersion, cfgVersionCode, cfgResVersion, cfgLoginParamsBase64, cfgFeatures = cfg.AppVersion, cfg.VersionCode, cfg.ResVersion, cfg.LoginParamsBase64, cfg.Features
 		cfgDuelPolicy = cfg.DuelPolicy
 		slog.Info("loaded session config", "path", cfgSource)
 		// Round 33 fix (originally scoped to -cs-ip/-cs-port/-cs-gameuid only; round 34 extends it
@@ -362,6 +387,15 @@ func Run() {
 		}
 	}
 
+	if analyticsCfg != nil && !crossServer {
+		slog.Error("-analytics requires an existing authenticated reconnect configuration; guest account creation is disabled in analytics mode")
+		os.Exit(1)
+	}
+	if *memberTHPOutput != "" && !crossServer && *email == "" {
+		slog.Error("-member-thp-output requires either a server-accepted reconnect session config or fresh -email verification")
+		os.Exit(1)
+	}
+
 	if crossServer {
 		if *email != "" {
 			slog.Warn("ignoring -email because -cs-ip/-cs-rt/-cs-at is set (cross-server reconnect doesn't use the email flow)")
@@ -372,10 +406,12 @@ func Run() {
 		runCrossServerTest(crossServerTestOpts{
 			ip: *csIP, port: *csPort, zone: *csZone, gameUid: *csGameUid,
 			deviceID: *csDeviceID, shumeiBoxId: *csShumei, rt: *csRt, at: *csAt,
-			iosMode: *csIOS, appVersion: cfgAppVersion, versionCode: cfgVersionCode,
-			features: cfgFeatures, duelPolicy: cfgDuelPolicy, runFeature: *runFeature, runAnyway: *runAnyway,
-			interactive: *interactive, handshake: *handshake,
-			collect: *collect, listBuildings: *listBuildings, configSavePath: cfgSource,
+			iosMode: *csIOS, appVersion: cfgAppVersion, versionCode: cfgVersionCode, resVersion: cfgResVersion,
+			loginParamsBase64: cfgLoginParamsBase64,
+			features:          cfgFeatures, duelPolicy: cfgDuelPolicy, runFeature: *runFeature, runAnyway: *runAnyway,
+			interactive: *interactive, handshake: *handshake, analyticsCfg: analyticsCfg,
+			memberTHPOutput: *memberTHPOutput,
+			collect:         *collect, listBuildings: *listBuildings, configSavePath: cfgSource,
 			ipExplicit: csIPSetExplicitly, portExplicit: csPortSetExplicitly,
 			zoneExplicit: csZoneSetExplicitly, gameUidExplicit: csGameUidSetExplicitly,
 			atExplicit: csAtSetExplicitly, interactiveExplicit: interactiveSetExplicitly,
@@ -402,6 +438,50 @@ func Run() {
 	}
 	conn := result.Conn
 	defer func() { _ = conn.Close() }()
+
+	if *memberTHPOutput != "" {
+		// Email verification binds the account but the socket that performed it was
+		// bootstrapped in the preceding guest role. Reconnect through the newly
+		// persisted loginKey before using an implicitly own-alliance endpoint.
+		if !result.EmailVerified || !result.LoginKeyPersisted || !result.GameUIDPersisted || result.Account == nil {
+			slog.Error("fresh email verification did not produce durable loginKey and gameUid state; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		verifiedGameUID := result.Account.GetString("gameUid")
+		if verifiedGameUID == "" {
+			slog.Error("verified account response had no role gameUid; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		_ = conn.Close()
+		result, err = auth.Login(auth.LoginOptions{Handshake: *handshake})
+		if err != nil {
+			slog.Error("verified account could not reconnect into its game role; no THP request was sent", "error", err)
+			exitIfReauthNeeded(err)
+			if errors.Is(err, session.ErrAuthRejected) {
+				os.Exit(2)
+			}
+			os.Exit(1)
+		}
+		conn = result.Conn
+		if !result.UsedLoginKey || !result.MatchesRoleGameUID(verifiedGameUID) {
+			slog.Error("post-verification login did not resolve the same persisted role; refusing THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		if !result.GotInit {
+			slog.Error("authenticated role did not produce an init snapshot; refusing implicit-alliance THP request")
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		if err := runPrivateTHPProbe(conn, result.SourceServer, *memberTHPOutput); err != nil {
+			slog.Error("private member THP probe failed", "error", err)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
+	}
 
 	buildings := result.Buildings
 	visitors := result.Visitors
@@ -681,7 +761,7 @@ func warnIfInteractiveExplicitlyEmpty(explicit bool, interactive string) {
 // detectSwallowedFlagValue) so it reads as a deliberate, reviewable scoping decision, matching this
 // file's existing crossServerFlagNames convention just below.
 var stringFlagSwallowGuardNames = map[string]bool{
-	"email": true, "code-pipe": true, "interactive": true,
+	"email": true, "code-pipe": true, "interactive": true, "analytics": true, "member-thp-output": true,
 	"cs-ip": true, "cs-zone": true, "cs-gameuid": true, "cs-deviceid": true,
 	"cs-shumei": true, "cs-rt": true, "cs-at": true,
 	"config": true, "decode-stream": true, "decode-label": true, "log-level": true,
@@ -927,8 +1007,10 @@ func printVersion() {
 }
 
 type crossServerTestOpts struct {
+	analyticsCfg                                                  *analytics.Config
 	ip, zone, gameUid, deviceID, shumeiBoxId, rt, at, interactive string
-	appVersion, versionCode                                       string            // session config only; see SessionConfig.AppVersion
+	memberTHPOutput                                               string
+	appVersion, versionCode, resVersion, loginParamsBase64        string            // session config only; see SessionConfig.AppVersion
 	features                                                      map[string]bool   // session config only; see SessionConfig.Features
 	duelPolicy                                                    map[string]string // session config only; see SessionConfig.DuelPolicy
 	runFeature                                                    string            // -run: run just this feature, then exit
@@ -1158,9 +1240,11 @@ func runCrossServerTest(o crossServerTestOpts) {
 				// everything came from a session config, nothing was set yet, or a flag was
 				// explicitly passed but empty/zero) keeps the plain INFO-level "server selected"
 				// log below instead.
-				slog.Warn("GSL refresh response's server list is overriding explicitly-passed flag(s)", "overriddenFlags", overridden, "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", srv.GameUid)
+				redactedGameUID := sfs.Redact(srv.GameUid.String())
+				slog.Warn("GSL refresh response's server list is overriding explicitly-passed flag(s)", "overriddenFlags", overridden, "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", redactedGameUID)
 			} else {
-				slog.Info("server selected", "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", srv.GameUid)
+				redactedGameUID := sfs.Redact(srv.GameUid.String())
+				slog.Info("server selected", "ip", srv.IP, "port", srv.Port, "zone", srv.Zone, "gameUid", redactedGameUID)
 			}
 			ip, port, zone, gameUid = srv.IP.String(), srv.Port.Int("port"), srv.Zone.String(), srv.GameUid.String()
 		}
@@ -1277,15 +1361,21 @@ func runCrossServerTest(o crossServerTestOpts) {
 		os.Exit(1)
 	}
 
-	resVersion := auth.ResVersionFor(httpClient, cv, o.iosMode, o.appVersion, o.versionCode, zone)
+	resVersion := o.resVersion
+	if resVersion == "" {
+		resVersion = auth.ResVersionFor(httpClient, cv, o.iosMode, o.appVersion, o.versionCode, zone)
+	} else {
+		slog.Info("using captured resVersion from session config", "resVersion", resVersion)
+	}
 	params := auth.CrossServerLoginParams{
 		IP: ip, Port: port, Zone: zone, GameUid: gameUid,
 		DeviceID: deviceID, AirKey: airKey,
 		AccessTok: accessTok, ShumeiBoxId: o.shumeiBoxId,
 		Handshake: o.handshake, IOSMode: o.iosMode,
 		AppVersion: o.appVersion, VersionCode: o.versionCode,
-		ResVersion: resVersion,
-		DialGame:   o.dialGame,
+		ResVersion:        resVersion,
+		LoginParamsBase64: o.loginParamsBase64,
+		DialGame:          o.dialGame,
 	}
 	result, err := auth.DoCrossServerLogin(params)
 	if err != nil && lookup != nil && !lookedUp && connectFailed(err) {
@@ -1340,8 +1430,9 @@ func runCrossServerTest(o crossServerTestOpts) {
 						IP: savedIP, Port: newPort, Zone: result.Zone,
 						GameUid: result.GameUid, DeviceID: deviceID,
 						ShumeiBoxId: o.shumeiBoxId, AccessToken: result.AccessTok,
-						IOSMode: o.iosMode, AppVersion: o.appVersion, VersionCode: o.versionCode,
-						Features: o.features, DuelPolicy: o.duelPolicy,
+						IOSMode: o.iosMode, AppVersion: o.appVersion, VersionCode: o.versionCode, ResVersion: resVersion,
+						LoginParamsBase64: o.loginParamsBase64,
+						Features:          o.features, DuelPolicy: o.duelPolicy,
 					}
 					if err := SaveSessionConfig(updated, o.configSavePath); err != nil {
 						slog.Warn("failed to persist redirected server address to session config", "path", o.configSavePath, "error", err)
@@ -1351,6 +1442,39 @@ func runCrossServerTest(o crossServerTestOpts) {
 				}
 			}
 		}
+	}
+
+	if o.analyticsCfg != nil {
+		initPush, initErr := game.FetchInit(conn, 15*time.Second)
+		if initErr != nil {
+			slog.Warn("analytics init metadata unavailable")
+		}
+		source := initPush.Object("user").GetInt("serverId")
+		if err := runAnalytics(conn, o.analyticsCfg, source); err != nil {
+			slog.Error("analytics failed", "error", err)
+			exitIfSessionEnded(err, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
+	}
+
+	if o.memberTHPOutput != "" {
+		initPush, initErr := game.FetchInit(conn, 15*time.Second)
+		if initErr != nil {
+			slog.Error("authenticated reconnect did not produce an init snapshot; refusing implicit-alliance THP request", "error", initErr)
+			exitIfSessionEnded(initErr, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		source := initPush.Object("user").GetInt("serverId")
+		if err := runPrivateTHPProbe(conn, source, o.memberTHPOutput); err != nil {
+			slog.Error("private member THP probe failed", "error", err)
+			exitIfSessionEnded(err, conn)
+			_ = conn.Close()
+			os.Exit(1)
+		}
+		return
 	}
 
 	slog.Info("fetching building list (push.init.build)")

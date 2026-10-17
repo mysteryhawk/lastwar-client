@@ -45,6 +45,7 @@ func loginCapture(t *testing.T, accepted bool) string {
 	params.PutUtfString("gameUid", "1000000000000783")
 	params.PutUtfString("appVersion", "1.0.344")
 	params.PutUtfString("versionCode", "786")
+	params.PutUtfString("resVersion", "2159.1505_821F_39516.23570")
 	params.PutUtfString("platform", "0")
 	params.PutUtfString("shumeiBoxId", testShumei)
 	params.PutUtfString("at", testToken)
@@ -134,8 +135,12 @@ func TestRunSessionOutWritesAcceptedLogin(t *testing.T) {
 	want := app.SessionConfig{
 		IP: "203.0.113.5", Port: 10783, Zone: "APS783", GameUid: "1000000000000783",
 		DeviceID: testDevice, ShumeiBoxId: testShumei, AccessToken: testToken, IOSMode: true,
-		AppVersion: "1.0.344", VersionCode: "786",
+		AppVersion: "1.0.344", VersionCode: "786", ResVersion: "2159.1505_821F_39516.23570",
 	}
+	if got.LoginParamsBase64 == "" {
+		t.Fatal("session config omitted captured Login parameter template")
+	}
+	want.LoginParamsBase64 = got.LoginParamsBase64
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("session config mismatch:\n got %+v\nwant %+v", got, want) // test-only fake values
 	}

@@ -300,8 +300,8 @@ func (o *SFSObject) GoString() string {
 // SensitiveSFSKeys lists the field names this protocol is known to carry live credentials/tokens
 // under, across every login/session response and request this repo decodes or builds (see
 // login.go's Redact() call sites, identity.go's BuildLoginParams, and gsl.go's
-// LoginServerListRespon.At/Rt) -- loginKey/accountArr's sibling, gameUid, is deliberately not
-// included: it identifies an account but isn't a bearer credential by itself.
+// LoginServerListRespon.At/Rt). gameUid is not a bearer credential by itself, but it is a stable
+// account identifier and must not appear in logs or decoded captures.
 var SensitiveSFSKeys = map[string]bool{
 	"loginKey":    true,
 	"at":          true,
@@ -315,6 +315,7 @@ var SensitiveSFSKeys = map[string]bool{
 	"shumeiId": true,
 	"pw":       true,
 	"password": true,
+	"gameUid":  true,
 	// verifyCode is the live one-time email-verification code account.login.new sends to
 	// complete login (see login.go's finishParams.PutUtfString("verifyCode", code)).
 	"verifyCode": true,
@@ -337,6 +338,10 @@ var SensitiveSFSKeys = map[string]bool{
 	// this stays as defense-in-depth in case a future field embeds something sensitive inside
 	// this or another opaque string value.
 	"ta": true,
+	// dataConfigMd5 is opaque but a real client populates it with a string beginning with the
+	// stable game UID. Captured-template replay makes that value non-empty, so debug dumps must
+	// mask the whole field just like ta rather than relying on its misleading hash-like name.
+	"dataConfigMd5": true,
 	// mail and email are the operator's own real email address under the two key names the
 	// protocol uses for it: "mail" in the client's requests (login.go's email-verification flow,
 	// PutUtfString("mail", opts.Email) for account.login.send.verify.code and account.login.new),

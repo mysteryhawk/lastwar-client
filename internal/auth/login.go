@@ -23,12 +23,28 @@ import (
 // the live connection and the account snapshot from push.account.login.new
 // (when the email-code path ran) or the base login response otherwise.
 type LoginResult struct {
-	Conn      *session.GameConn
-	Ident     *deviceIdentity
-	Account   *sfs.SFSObject  // push.account.login.new params, if the email path ran (nil on loginKey fast-path)
-	Buildings []game.Building // populated if the `init` bootstrap push arrived during login (see waitForInitPush)
-	Visitors  []game.Visitor  // populated alongside Buildings, from the same `init` push (see waitForInitPush)
-	GotInit   bool            // the `init` push arrived during login
+	Conn  *session.GameConn
+	Ident *deviceIdentity
+	// SourceServer is the final game server selected by GSL or a validated
+	// serverInfo redirect. It describes this socket's role context; callers
+	// must not substitute a requested/target server for it.
+	SourceServer      int32
+	roleGameUID       string          // final GSL/redirect-selected role; sensitive, never expose raw
+	UsedLoginKey      bool            // this socket was resolved through the persisted loginKey
+	EmailVerified     bool            // account.login.new and its account push both succeeded
+	LoginKeyPersisted bool            // verified loginKey was durably saved for the next login
+	GameUIDPersisted  bool            // verified gameUid was durably saved for the next login
+	Account           *sfs.SFSObject  // push.account.login.new params, if the email path ran (nil on loginKey fast-path)
+	Buildings         []game.Building // populated if the `init` bootstrap push arrived during login (see waitForInitPush)
+	Visitors          []game.Visitor  // populated alongside Buildings, from the same `init` push (see waitForInitPush)
+	GotInit           bool            // the `init` push arrived during login
+}
+
+// MatchesRoleGameUID lets a guarded caller prove that a subsequent login
+// selected the role named by an earlier verified account push without exposing
+// the stable role identifier through LoginResult's public surface.
+func (r *LoginResult) MatchesRoleGameUID(expected string) bool {
+	return r != nil && expected != "" && r.roleGameUID != "" && r.roleGameUID == expected
 }
 
 // LoginOptions configures how Login authenticates.
@@ -63,6 +79,17 @@ func (o LoginOptions) LogValue() slog.Value { return slog.StringValue(o.String()
 //	neither known              -> opt=new (brand new device)
 func gslOptFor(ident *deviceIdentity) gsl.GSLOpt {
 	return gsl.ChooseOpt(gsl.OptState{LoginKey: ident.LoginKey, GameUid: ident.GameUid}, time.Now())
+}
+
+// baseZoneRoleUID returns the selected role UID only when GSL resolved a
+// freshly verified loginKey. Fresh guest bootstrap must continue to leave the
+// role blank, but an opt=login token is issued for the selected existing role
+// and its SFS Login must identify that role in both un and p.gameUid.
+func baseZoneRoleUID(opt gsl.GSLOpt, selectedGameUID string) string {
+	if opt.Opt == "login" {
+		return selectedGameUID
+	}
+	return ""
 }
 
 // buildBaseZoneLoginAddr builds the "host:port" dial address for the base zone SFS2X connection
@@ -277,7 +304,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	// Not "username": ident.Username -- that would print the operator's real persisted account
 	// username in cleartext at Info level on every run. Mirrors the emailLen pattern used
 	// elsewhere in this file for the same PII-in-a-plain-string reason (see step 6 below).
-	slog.Info("persisted state", "usernameLen", len(ident.Username), "gameUid", ident.GameUid, "loginKey", sfs.Redact(ident.LoginKey))
+	slog.Info("persisted state", "usernameLen", len(ident.Username), "gameUid", sfs.Redact(ident.GameUid), "loginKey", sfs.Redact(ident.LoginKey))
 
 	opt := gslOptFor(ident)
 	slog.Info("step 2: GSL getserverlist", "opt", opt.Opt)
@@ -298,7 +325,8 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		serverListLogCount = maxServerListLogEntries
 	}
 	for _, s := range lsr.ServerList[:serverListLogCount] {
-		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", s.GameUid, "status", s.Status)
+		redactedGameUID := sfs.Redact(s.GameUid.String())
+		slog.Info("state server", "id", s.ID, "name", s.Name, "ip", s.IP, "port", s.Port, "zone", s.Zone, "gameUid", redactedGameUID, "status", s.Status)
 	}
 	accessTok := ""
 	if lsr.At != nil {
@@ -313,6 +341,10 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	resVersion := ResVersionFor(httpClient, cv, false, "", "", "")
 	zone := capOversizedIdentityField("zone", stateSrv.Zone.String(), "", "login initial GSL response")
 	gameUid := capOversizedIdentityField("gameUid", stateSrv.GameUid.String(), "", "login initial GSL response")
+	roleGameUID := baseZoneRoleUID(opt, gameUid)
+	if opt.Opt == "login" && roleGameUID == "" {
+		return nil, errors.New("login: GSL resolved loginKey without a role gameUid")
+	}
 	if gameUid != "" && gameUid != ident.GameUid {
 		if err := ident.SaveGameUid(gameUid); err != nil {
 			slog.Warn("failed to persist gameUid", "error", err)
@@ -385,26 +417,16 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		}
 
 		slog.Info("step 4: SFS zone login")
-		// NOTE: per LoginMessage.CSSetData (Assembly-CSharp.decompiled.cs:
-		// 122420+), `un` should be AccountCredentialManager.ServerInfo.uid
-		// -- GSL's composite `gameUid` -- once known. Empirically that's
-		// backwards for the base zone Login on THIS server: sending a
-		// non-empty `un`/`p.gameUid` reliably gets ec=28/E005 (or E011),
-		// reproducibly, even for a low-value guest identity that has
-		// simply connected once before -- not just for an established
-		// real account. `un=""` (letting the server resolve identity from
-		// deviceId/airKey alone) is the only combination that has ever
-		// worked, in every test run tonight. Best guess:
-		// AccountCredentialManager.SetUID is only actually called from the
-		// role-picker flow (UIRoleLoginView.OnClickLogin) in real play,
-		// not populated automatically from a plain GSL response the way
-		// this dossier's static reading assumed -- so ServerInfo.uid is
-		// genuinely empty at this call site in normal operation too.
+		// A brand-new guest has no selected role and deliberately sends blank
+		// un/p.gameUid. GSL opt=login is different: it exchanges the loginKey
+		// created by account.login.new for a token scoped to an existing role,
+		// so the subsequent SFS Login must carry the GSL-selected role UID.
+		// DoCrossServerLogin implements the same UIRoleLoginView wire shape.
 		loginParams := BuildLoginParams(LoginParamsInput{
 			FutureID:   1,
 			DeviceID:   ident.DeviceID,
 			AirKey:     ident.AirKey(),
-			GameUid:    "",
+			GameUid:    roleGameUID,
 			AccessTok:  accessTok,
 			ServerID:   serverID,
 			ResVersion: resVersion,
@@ -412,14 +434,14 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		loginPF = loginParams.GetString("pf")
 		loginContent := sfs.NewSFSObject()
 		loginContent.PutUtfString("zn", zone)
-		loginContent.PutUtfString("un", "")
+		loginContent.PutUtfString("un", roleGameUID)
 		loginContent.PutUtfString("pw", "")
 		loginContent.PutSFSObject("p", loginParams)
 		if err := conn.SendEnvelope(session.ControllerSystem, session.ActionLogin, loginContent); err != nil {
 			_ = conn.Close()
 			return nil, session.SendStageError{Err: err}
 		}
-		slog.Info("login request sent, waiting for response", "gameUid", gameUid, "at", sfs.Redact(accessTok))
+		slog.Info("login request sent, waiting for response", "gameUid", sfs.Redact(gameUid), "at", sfs.Redact(accessTok))
 
 		env, err := session.WaitFor(conn, 15*time.Second, func(e *session.Envelope) bool {
 			return e.Controller == session.ControllerSystem && e.Action == session.ActionLogin
@@ -481,7 +503,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 			// identity the token belongs to.
 			newGameUid := redirectUid(siObj, "login.go base-zone Login")
 			slog.Info("serverInfo redirect: reconnecting to new address with the same access token", "newAddr", newAddr, "newZone", newZone,
-				"oldAddr", addr, "oldZone", zone, "newGameUid", newGameUid, "oldGameUid", gameUid, "accessTokLen", len(accessTok))
+				"oldAddr", addr, "oldZone", zone, "newGameUid", sfs.Redact(newGameUid), "oldGameUid", sfs.Redact(gameUid), "accessTokLen", len(accessTok))
 			_ = conn.Close()
 			addr = newAddr
 			if newZone != "" {
@@ -528,7 +550,14 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		slog.Warn("giving up on init after all attempts; continuing anyway, building list may be empty")
 	}
 
-	result := &LoginResult{Conn: conn, Ident: ident, Buildings: buildings, Visitors: visitors, GotInit: gotInit}
+	var sourceServer int32
+	if parsed, parseErr := strconv.ParseInt(serverID, 10, 32); parseErr == nil && parsed > 0 {
+		sourceServer = int32(parsed)
+	}
+	result := &LoginResult{
+		Conn: conn, Ident: ident, SourceServer: sourceServer, roleGameUID: gameUid,
+		UsedLoginKey: opt.Opt == "login", Buildings: buildings, Visitors: visitors, GotInit: gotInit,
+	}
 
 	if opt.Opt == "login" {
 		// GSL already resolved the real account via loginKey; the base
@@ -623,12 +652,13 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		// redaction. Build the error from explicitly-selected, individually-redacted fields
 		// instead of dumping the raw response.
 		return nil, fmt.Errorf("LOGIN-WITH-CODE FAILED (push): errorCode=%v gameUid=%s loginKey=%s: %w",
-			ec.Val, msg2.Params.GetString("gameUid"), sfs.Redact(msg2.Params.GetString("loginKey")), session.ErrAuthRejected)
+			ec.Val, sfs.Redact(msg2.Params.GetString("gameUid")), sfs.Redact(msg2.Params.GetString("loginKey")), session.ErrAuthRejected)
 	}
 	// Not msg2.Params.String() -- the full response carries loginKey (and
 	// accountArr) in cleartext, and String() does no field-level redaction.
-	slog.Info("login success", "gameUid", msg2.Params.GetString("gameUid"), "loginKey", sfs.Redact(msg2.Params.GetString("loginKey")))
+	slog.Info("login success", "gameUid", sfs.Redact(msg2.Params.GetString("gameUid")), "loginKey", sfs.Redact(msg2.Params.GetString("loginKey")))
 	result.Account = msg2.Params
+	result.EmailVerified = true
 
 	// session.WarnIfWrongTypedField below adds a diagnostic for the "field present but wrong-typed"
 	// case specifically -- distinct from genuinely absent, which the GetString-then-compare-to-""
@@ -640,6 +670,7 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 		if err := ident.SaveLoginKey(lk); err != nil {
 			slog.Warn("failed to persist loginKey", "error", err)
 		} else {
+			result.LoginKeyPersisted = true
 			slog.Info("persisted loginKey for future fast logins")
 		}
 	}
@@ -647,6 +678,8 @@ func Login(opts LoginOptions) (*LoginResult, error) {
 	if gu := msg2.Params.GetString("gameUid"); gu != "" {
 		if err := ident.SaveGameUid(gu); err != nil {
 			slog.Warn("failed to persist gameUid", "error", err)
+		} else {
+			result.GameUIDPersisted = true
 		}
 	}
 	session.WarnIfWrongTypedField(msg2.Params, "gameUserName", "push.account.login.new", session.SFSFieldKindString)

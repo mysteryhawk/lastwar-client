@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"lastwar-client/internal/gsl"
@@ -74,6 +75,9 @@ type CrossServerLoginParams struct {
 	AppVersion  string // build the token was issued under, if known; see LoginParamsInput.AppVersion
 	VersionCode string
 	ResVersion  string // see LoginParamsInput.ResVersion and ResVersionFor; "" sends "0"
+	// LoginParamsBase64 is a private encoded template captured from a server-accepted Login.
+	// It preserves opaque platform fingerprint fields BuildLoginParams cannot derive.
+	LoginParamsBase64 string
 
 	// DialGame, if non-nil, replaces the package-level dialGame (ultimately session.DialGame) used
 	// to open the game socket -- and is used for every redial in the serverInfo-redirect loop, not
@@ -207,19 +211,11 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 			slog.Info("handshake OK", "response", hsResp.StringRedacted())
 		}
 
-		loginParams := BuildLoginParams(LoginParamsInput{
-			FutureID:    1,
-			DeviceID:    p.DeviceID,
-			AirKey:      p.AirKey,
-			GameUid:     p.GameUid,
-			AccessTok:   p.AccessTok,
-			ServerID:    serverIDFromZone(zone),
-			ShumeiBoxId: p.ShumeiBoxId,
-			IOSMode:     p.IOSMode,
-			AppVersion:  p.AppVersion,
-			VersionCode: p.VersionCode,
-			ResVersion:  p.ResVersion,
-		})
+		loginParams, paramsErr := crossServerLoginParams(p, zone)
+		if paramsErr != nil {
+			_ = conn.Close()
+			return nil, paramsErr
+		}
 		loginContent := sfs.NewSFSObject()
 		loginContent.PutUtfString("zn", zone)
 		loginContent.PutUtfString("un", p.GameUid)
@@ -260,7 +256,7 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 			return nil, session.SendStageError{Err: err}
 		}
 		slog.Info("login request sent, waiting for response",
-			"gameUid", p.GameUid, "zone", zone, "accessTok", sfs.Redact(p.AccessTok), "shumeiBoxId", sfs.Redact(p.ShumeiBoxId))
+			"gameUid", sfs.Redact(p.GameUid), "zone", zone, "accessTok", sfs.Redact(p.AccessTok), "shumeiBoxId", sfs.Redact(p.ShumeiBoxId))
 
 		env, err := session.WaitFor(conn, 15*time.Second, func(e *session.Envelope) bool {
 			return e.Controller == session.ControllerSystem && e.Action == session.ActionLogin
@@ -293,6 +289,10 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 			redirectIPVal = redirectIP(siObj, "crossserver.go cross-server Login")
 		}
 		if siObj != nil && redirectIPVal != "" {
+			if p.LoginParamsBase64 != "" {
+				_ = conn.Close()
+				return nil, fmt.Errorf("cross-server login: serverInfo redirected a captured Login template; recapture the official role Login instead of rewriting opaque UID/zone-bound fields")
+			}
 			// redirectIP (login.go) distinguishes a present-but-wrong-typed ip from a genuinely
 			// absent one, logging a Warn for the former -- see its doc comment for why that gap
 			// (only port was hardened via getIntFlexible, not ip) was a real, non-theoretical risk.
@@ -318,7 +318,7 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 			// into SecurityCode on the redialed Login. Absent or empty keeps the current one.
 			newGameUid := redirectUid(siObj, "crossserver.go cross-server Login")
 			slog.Info("serverInfo redirect: reconnecting to new address with the same access token", "newAddr", newAddrs[0], "newZone", newZone,
-				"oldAddr", addr, "oldZone", zone, "newGameUid", newGameUid, "oldGameUid", p.GameUid, "accessTokLen", len(p.AccessTok))
+				"oldAddr", addr, "oldZone", zone, "newGameUid", sfs.Redact(newGameUid), "oldGameUid", sfs.Redact(p.GameUid), "accessTokLen", len(p.AccessTok))
 
 			_ = conn.Close()
 			addrs = newAddrs
@@ -334,6 +334,36 @@ func DoCrossServerLogin(p CrossServerLoginParams) (*CrossServerLoginResult, erro
 		_ = conn.SetReadDeadline(time.Time{})
 		return &CrossServerLoginResult{Conn: conn, Content: env.Content, Addr: addr, Zone: zone, AccessTok: p.AccessTok, GameUid: p.GameUid}, nil
 	}
+}
+
+func crossServerLoginParams(p CrossServerLoginParams, zone string) (*sfs.SFSObject, error) {
+	params := BuildLoginParams(LoginParamsInput{
+		FutureID: 1, DeviceID: p.DeviceID, AirKey: p.AirKey, GameUid: p.GameUid,
+		AccessTok: p.AccessTok, ServerID: serverIDFromZone(zone), ShumeiBoxId: p.ShumeiBoxId,
+		IOSMode: p.IOSMode, AppVersion: p.AppVersion, VersionCode: p.VersionCode, ResVersion: p.ResVersion,
+	})
+	if p.LoginParamsBase64 == "" {
+		return params, nil
+	}
+	encoded, err := base64.StdEncoding.DecodeString(p.LoginParamsBase64)
+	if err != nil || len(encoded) == 0 || len(encoded) > 1<<20 {
+		return nil, fmt.Errorf("cross-server login: invalid captured Login parameter template")
+	}
+	params, err = sfs.DecodeObject(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("cross-server login: decode captured Login parameter template: %w", err)
+	}
+	params.PutInt("_id", 1)
+	params.PutUtfString("deviceId", p.DeviceID)
+	params.PutUtfString("airKey", p.AirKey)
+	params.PutUtfString("gameUid", p.GameUid)
+	params.PutUtfString("at", p.AccessTok)
+	params.PutUtfString("serverId", serverIDFromZone(zone))
+	params.PutUtfString("shumeiBoxId", p.ShumeiBoxId)
+	params.PutUtfString("appVersion", p.AppVersion)
+	params.PutUtfString("versionCode", p.VersionCode)
+	params.PutUtfString("resVersion", p.ResVersion)
+	return params, nil
 }
 
 // dialFirst dials addrs in order and returns the first connection that succeeds, along with its

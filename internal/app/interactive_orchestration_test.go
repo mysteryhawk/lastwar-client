@@ -70,6 +70,7 @@ func TestHandleInteractiveLineSendsParsedCommand(t *testing.T) {
 		gotCh <- got{msg.Cmd, msg.Params}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension(msg.Cmd, resp)
 	}()
 
@@ -124,6 +125,7 @@ func TestHandleInteractiveLineRedactsCredentialFields(t *testing.T) {
 			return
 		}
 		resp := sfs.NewSFSObject()
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		resp.PutUtfString("loginKey", secretLoginKey)
 		resp.PutUtfString("gameUid", "g1")
 		_ = server.SendExtension(msg.Cmd, resp)
@@ -339,6 +341,7 @@ func TestHandleInteractiveLineSendsBareCommandWithNoSpace(t *testing.T) {
 		gotCh <- got{msg.Cmd, msg.Params}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension(msg.Cmd, resp)
 	}()
 
@@ -368,61 +371,37 @@ func TestHandleInteractiveLineSendsBareCommandWithNoSpace(t *testing.T) {
 	}
 }
 
-// TestHandleInteractiveLineWaitForCmdTimeoutDoesNotExit is this round's regression test for
-// handleInteractiveLine's waitForCmd error handling: the exact same net.Error/Timeout()
-// distinction round 21 applied at 6+ other call sites (buildings.go, mail.go, visitors.go,
-// alliance.go) -- and that's already honored two lines up by SendExtension's own
-// unconditional-fatal treatment on send failure -- was simply absent from this waitForCmd site.
-// A Timeout()==true net.Error is waitForCmd's ordinary "no matching response within 8s" outcome
-// (conn_wait_test.go's TestWaitForTimeout confirms sendAndWait/waitForCmd's plain timeout is
-// itself a net.Error with Timeout()==true) -- routine and expected, not evidence the connection
-// died -- so handleInteractiveLine must keep its original log-and-return behavior here, NOT
-// os.Exit.
-//
-// It reuses fakeNetErrConn/fakeNetError (buildings_orchestration_test.go, same package) with
-// timeout: true instead of interactive.go's real 8-second wait or a live net.Pipe peer: every
-// Read on the fake connection fails immediately with a Timeout()==true net.Error, so this test
-// drives the exact same error shape waitForCmd's real deadline-expiry produces, but fast and
-// deterministically. Writes still succeed (fakeNetErrConn's default behavior), so
-// conn.SendExtension above this in handleInteractiveLine still succeeds and this test actually
-// reaches the waitForCmd failure path rather than short-circuiting on the send.
-//
-// Mutation check: a fix that treats every waitForCmd error identically as fatal (dropping the
-// Timeout() check entirely) would make this test hang until its own 2s watchdog fires, since
-// handleInteractiveLine would call os.Exit(1) and kill the whole test binary before `done` could
-// ever close.
+// A request context deadline must leave the continuous socket reader alive.
 func TestHandleInteractiveLineWaitForCmdTimeoutDoesNotExit(t *testing.T) {
-	fake := &fakeNetErrConn{timeout: true}
-	conn := session.NewGameConnForTest(fake)
-
+	client, server := session.NewPipeGameConnPair(t)
+	previous := interactiveCommandTimeout
+	interactiveCommandTimeout = 30 * time.Millisecond
+	t.Cleanup(func() { interactiveCommandTimeout = previous })
+	received := make(chan struct{})
+	go func() {
+		if _, err := server.ReadEnvelope(); err == nil {
+			close(received)
+		}
+	}()
 	var buf bytes.Buffer
 	orig := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
 	defer slog.SetDefault(orig)
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		handleInteractiveLine(conn, `some.command`)
-	}()
-
+	handleInteractiveLine(client, `some.command`)
 	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("handleInteractiveLine did not return promptly on a routine (Timeout()==true) waitForCmd failure -- did it call os.Exit instead of returning?")
+	case <-received:
+	default:
+		t.Fatal("request not written")
 	}
-
-	if got := fake.writeCount(); got != 1 {
-		t.Errorf("fake connection saw %d writes, want exactly 1 (the SendExtension call, which must still have succeeded before the waitForCmd timeout)", got)
+	select {
+	case <-client.StartDispatcher().Done():
+		t.Fatal("request deadline stopped reader")
+	default:
 	}
-
-	logged := buf.String()
-	if !strings.Contains(logged, "no matching response within 8s") {
-		t.Errorf("expected the routine \"no matching response within 8s\" log line for a Timeout()==true waitForCmd error, got:\n%s", logged)
+	if !strings.Contains(buf.String(), "no matching response within 8s") {
+		t.Fatal(buf.String())
 	}
-	if strings.Contains(logged, "connection appears dead") {
-		t.Errorf("a Timeout()==true waitForCmd error must not be logged as a dead connection:\n%s", logged)
-	}
+	_ = client.StartDispatcher().Close()
 }
 
 // TestHandleInteractiveLineSurvivesCorruptPushWhileWaitingForResponse is the round-49 regression
@@ -439,14 +418,17 @@ func TestHandleInteractiveLineSurvivesCorruptPushWhileWaitingForResponse(t *test
 	client, server := session.NewPipeGameConnPair(t)
 
 	go func() {
-		if _, err := server.ReadEnvelope(); err != nil {
+		env, err := server.ReadEnvelope()
+		if err != nil {
 			return
 		}
+		msg, _ := env.AsExtension()
 		if _, err := server.RawConn().Write(testutil.MustEncodeCorruptPacket(t, "field", "value")); err != nil {
 			return
 		}
 		resp := sfs.NewSFSObject()
 		resp.PutBool("success", true)
+		resp.PutInt("_id", msg.Params.GetInt("_id"))
 		_ = server.SendExtension("some.command", resp)
 	}()
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"lastwar-client/internal/game"
+	"lastwar-client/internal/gsl"
 	"lastwar-client/internal/session"
 	"lastwar-client/internal/sfs"
 	"log/slog"
@@ -54,6 +55,43 @@ func TestGslOptFor(t *testing.T) {
 				t.Errorf("LoginKey = %q, want %q", got.LoginKey, c.wantLoginKey)
 			}
 		})
+	}
+}
+
+func TestBaseZoneRoleUID(t *testing.T) {
+	const uid = "role-uid-1723"
+	for _, tc := range []struct {
+		name string
+		opt  gsl.GSLOpt
+		want string
+	}{
+		{name: "verified loginKey role", opt: gsl.GSLOpt{Opt: "login", LoginKey: "key"}, want: uid},
+		{name: "fresh guest", opt: gsl.GSLOpt{Opt: "new"}, want: ""},
+		{name: "legacy fix flow", opt: gsl.GSLOpt{Opt: "fix"}, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := baseZoneRoleUID(tc.opt, uid); got != tc.want {
+				t.Fatalf("baseZoneRoleUID() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVerifiedLoginKeyRoleUsesExistingPlayerWireShape(t *testing.T) {
+	const uid = "role-uid-1723"
+	roleUID := baseZoneRoleUID(gsl.GSLOpt{Opt: "login", LoginKey: "key"}, uid)
+	params := BuildLoginParams(LoginParamsInput{GameUid: roleUID})
+
+	if got := params.GetString("gameUid"); got != uid {
+		t.Fatalf("p.gameUid = %q, want verified role UID", got)
+	}
+	for _, guestOnly := range []string{"country", "suggestCountry", "timeoffset", "gcmRegisterId", "referrer"} {
+		if params.Has(guestOnly) {
+			t.Errorf("verified role login unexpectedly contains guest-only field %q", guestOnly)
+		}
+	}
+	if got := params.GetString("SecurityCode"); got != securityCode(params.GetString("cmdBaseTime"), uid) {
+		t.Error("verified role SecurityCode was not derived from the selected UID")
 	}
 }
 

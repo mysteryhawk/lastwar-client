@@ -1019,6 +1019,13 @@ func TestLoginEmailVerificationPath(t *testing.T) {
 	if result.Account == nil {
 		t.Fatal("result.Account = nil, want the push.account.login.new params")
 	}
+	if !result.EmailVerified || !result.LoginKeyPersisted || !result.GameUIDPersisted {
+		t.Fatalf("email verification state incomplete: verified=%v loginKeyPersisted=%v gameUIDPersisted=%v",
+			result.EmailVerified, result.LoginKeyPersisted, result.GameUIDPersisted)
+	}
+	if result.UsedLoginKey {
+		t.Fatal("fresh email flow incorrectly reported loginKey authentication")
+	}
 	if got := result.Account.GetString("loginKey"); got != wantLoginKey {
 		t.Errorf("result.Account loginKey = %q, want %q", got, wantLoginKey)
 	}

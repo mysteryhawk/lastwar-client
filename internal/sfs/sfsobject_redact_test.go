@@ -40,8 +40,8 @@ func TestStringRedactedMasksSensitiveKeys(t *testing.T) {
 	if !strings.Contains(got, "player-one") {
 		t.Errorf("StringRedacted must not mask ordinary non-sensitive fields, got: %s", got)
 	}
-	if !strings.Contains(got, "g-123456") {
-		t.Errorf("StringRedacted must not mask ordinary non-sensitive nested fields, got: %s", got)
+	if strings.Contains(got, "g-123456") {
+		t.Errorf("StringRedacted leaks the nested gameUid account identifier: %s", got)
 	}
 	// Redact()'s own shape (first4...last4) should still be visible for a long secret, proving
 	// this went through actual redaction rather than, say, dropping the field entirely.

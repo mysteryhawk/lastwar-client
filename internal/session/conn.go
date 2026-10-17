@@ -38,14 +38,19 @@ type Envelope struct {
 
 // GameConn is a raw (plaintext, connectionType 0) SFS2X socket connection.
 type GameConn struct {
-	conn   net.Conn
-	reader *bufio.Reader
-	wmu    sync.Mutex
+	conn           net.Conn
+	reader         *bufio.Reader
+	wmu            sync.Mutex
+	rmu            sync.Mutex
+	dispatchActive atomic.Bool
 
 	// extSent counts SendExtension calls on this connection; SendExtension derives each request's
 	// `_id` from it (see loginFutureID). A fresh GameConn per dial gives the per-connection reset
 	// the real client's FutureManager.reset() does on reconnect.
 	extSent atomic.Int32
+
+	dispatchOnce sync.Once
+	dispatcher   *Dispatcher
 
 	// lastCmd is the cmd of the most recent SendExtension, logged beside each score push so a
 	// push.act.score.obtain can be tied to the action that earned it (see logScorePush).
@@ -179,6 +184,10 @@ func (c *GameConn) SendEnvelope(controller byte, action int16, content *sfs.SFSO
 // caller's params are copied, not modified, so a params object can be reused across sends.
 func (c *GameConn) SendExtension(cmd string, params *sfs.SFSObject) error {
 	id := c.extSent.Add(1) + loginFutureID
+	return c.sendExtensionID(cmd, params, id)
+}
+
+func (c *GameConn) sendExtensionID(cmd string, params *sfs.SFSObject, id int32) error {
 	withID := sfs.NewSFSObject()
 	if params != nil {
 		for _, k := range params.Keys() {
@@ -204,6 +213,15 @@ func (c *GameConn) SendExtension(cmd string, params *sfs.SFSObject) error {
 // rather than in each read loop means WaitFor/SendAndWait, DoHandshake, login's waitForInitPush
 // and game's FetchInit all stop on it through the dead-connection check they already make.
 func (c *GameConn) ReadEnvelope() (*Envelope, error) {
+	c.rmu.Lock()
+	defer c.rmu.Unlock()
+	if c.dispatchActive.Load() {
+		return nil, ErrReaderOwned
+	}
+	return c.readEnvelopeLoop()
+}
+
+func (c *GameConn) readEnvelopeLoop() (*Envelope, error) {
 	for {
 		env, err := c.readEnvelope()
 		if err == nil && c.skipClientPings && env.Controller == ControllerSystem && env.Action == ActionPingPong {
@@ -223,7 +241,7 @@ func (c *GameConn) readEnvelope() (*Envelope, error) {
 	}
 	obj, err := sfs.DecodeObject(body)
 	if err != nil {
-		return nil, fmt.Errorf("decode envelope: %w", err)
+		return nil, &EnvelopeDecodeError{Err: err}
 	}
 	env := &Envelope{}
 	// Round-40 fix: all three fields below used to silently coerce a present-but-wrong-typed

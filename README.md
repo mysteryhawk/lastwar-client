@@ -198,6 +198,37 @@ mkfifo /tmp/lw_code_pipe
 echo 123456 > /tmp/lw_code_pipe
 ```
 
+For the narrowly scoped DoAC member-THP validation, `-member-thp-output` may be
+used with a private `-config` produced from a server-accepted official Login capture,
+or combined with the email flow. A captured session preserves the accepted build,
+resource version and opaque Login parameter template; the template is credential-grade
+private data and must never enter Git. With email, the probe closes the guest-context
+socket after successful
+verification, reconnects through the newly persisted account identity, requires an
+observed server-1723 role and a received `init`, then sends exactly one read-only
+`dragon.assign.player.info {}` request. The output path must be a new file in a
+private directory outside the repository; existing files and symlinks are refused.
+The JSON contains only UID, display name and THP plus minimal provenance. A run is
+successful only with 100 unique, fully valid rows, though a normalized incomplete
+reply is retained for diagnosis. Use a separate state directory for the chosen
+account and never place its contents in Git:
+
+```bash
+install -d -m 700 /home/opc/doac-private/account-state
+mkfifo -m 600 /home/opc/doac-private/code.pipe
+read -r -p 'Account email: ' DOAC_ACCOUNT_EMAIL
+LASTWAR_STATE_DIR=/home/opc/doac-private/account-state ./lastwar-client \
+  -no-config -email "$DOAC_ACCOUNT_EMAIL" \
+  -code-pipe /home/opc/doac-private/code.pipe \
+  -member-thp-output /home/opc/doac-private/member-thp-YYYYMMDDTHHMMSSZ.json &
+DOAC_PROBE_PID=$!
+read -r -s -p 'Six-digit verification code: ' DOAC_VERIFY_CODE; echo
+printf '%s\n' "$DOAC_VERIFY_CODE" > /home/opc/doac-private/code.pipe
+unset DOAC_ACCOUNT_EMAIL DOAC_VERIFY_CODE
+wait "$DOAC_PROBE_PID"
+rm /home/opc/doac-private/code.pipe
+```
+
 Device identity also persists across runs in `~/.lastwar_goclient_*` (deviceId, username, gameUid,
 loginKey) independent of the session config, so repeated guest/email-flow runs present a consistent
 device to the server. Delete those files to start fully fresh.

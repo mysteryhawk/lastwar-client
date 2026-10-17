@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"lastwar-client/internal/gsl"
+	"lastwar-client/internal/sfs"
 	"log/slog"
 	"net/http"
 )
@@ -58,7 +59,7 @@ func LookupGameServer(l ServerLookup) (GameServer, error) {
 	}
 	opt := gsl.GSLOpt{}
 	platform := loginBuild(l.IOSMode, "", "").Platform
-	slog.Info("GSL getserverlist: looking up the game server", "opt", opt.Opt, "platform", platform, "zone", l.Zone, "gameUid", l.GameUid)
+	slog.Info("GSL getserverlist: looking up the game server", "opt", opt.Opt, "platform", platform, "zone", l.Zone, "gameUid", sfs.Redact(l.GameUid))
 	lsr, err := gsl.GetServerListAs(l.HTTPClient, l.GateHost, l.RSAPub, platform, l.DeviceID, opt, l.Zone, l.GameUid)
 	if err != nil {
 		return GameServer{}, fmt.Errorf("GSL server lookup: %w", err)
@@ -76,7 +77,7 @@ func gameServerFrom(lsr *gsl.LoginServerListRespon, gameUid, zone, accessTok str
 	}
 	srv := lsr.PickServer(gameUid)
 	if g := srv.GameUid.String(); g != "" && g != gameUid {
-		return GameServer{}, fmt.Errorf("GSL server lookup: no server list entry for gameUid %s (the fallback pick, id %s, is gameUid %s)", gameUid, srv.ID, g)
+		return GameServer{}, fmt.Errorf("GSL server lookup: no server list entry for gameUid %s (the fallback pick, id %s, is gameUid %s)", sfs.Redact(gameUid), srv.ID, sfs.Redact(g))
 	}
 	s := GameServer{IP: srv.IP.String(), Port: srv.Port.Int("port"), Zone: zone}
 	if _, err := baseZoneLoginAddrs(s.IP, s.Port); err != nil {
